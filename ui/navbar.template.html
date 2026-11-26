@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{{APP_NAME}} Navigation</title>
+  <style>
+    :root {
+      --nav-bg: {{NAV_BG_COLOR}};
+      --nav-fg: {{NAV_ICON_COLOR}};
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    .u2n-navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      width: 100%;
+      min-height: 3.25rem;
+      padding: 0.375rem 0.5rem;
+      background-color: var(--nav-bg);
+      color: var(--nav-fg);
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .u2n-navbar[data-position="top"] {
+      border-top: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .u2n-nav-btn {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.1875rem;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      padding: 0.25rem 0.75rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: transparent;
+      color: var(--nav-fg);
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s ease, opacity 0.15s ease;
+    }
+
+    .u2n-nav-btn:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .u2n-nav-btn:active {
+      opacity: 0.75;
+    }
+
+    .u2n-nav-btn svg {
+      width: 1.125rem;
+      height: 1.125rem;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+</head>
+<body>
+  <nav id="u2n-navbar" class="u2n-navbar" data-position="{{NAV_POSITION}}" aria-label="Application navigation"></nav>
+
+  <script>
+    (function () {
+      var buttons = {{NAV_BUTTONS_JSON}};
+      var homeUrl = "{{TARGET_URL}}";
+      var nav = document.getElementById("u2n-navbar");
+
+      var icons = {
+        back: '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>',
+        forward: '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+        home: '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>',
+        reload: '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>',
+        link: '<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>'
+      };
+
+      buttons.forEach(function (item) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "u2n-nav-btn";
+        btn.setAttribute("aria-label", item.label);
+
+        var iconHolder = document.createElement("span");
+        var iconKey = item.action && icons[item.action] ? item.action : "link";
+        iconHolder.innerHTML = icons[iconKey];
+
+        var labelSpan = document.createElement("span");
+        labelSpan.textContent = item.label;
+
+        btn.appendChild(iconHolder);
+        btn.appendChild(labelSpan);
+
+        btn.addEventListener("click", function () {
+          if (item.url) {
+            window.location.href = item.url;
+            return;
+          }
+          if (item.action === "back") {
+            window.history.back();
+          } else if (item.action === "forward") {
+            window.history.forward();
+          } else if (item.action === "home") {
+            window.location.href = homeUrl;
+          } else if (item.action === "reload") {
+            window.location.reload();
+          }
+        });
+
+        nav.appendChild(btn);
+      });
+    })();
+  </script>
+</body>
+</html>

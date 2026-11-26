@@ -1,0 +1,59 @@
+{
+  "app": {
+    "name": "Url2Native App",
+    "packageId": "com.redzonerror.url2native",
+    "version": "1.0.0",
+    "url": "https://example.com",
+    "icon": "icon.png"
+  },
+  "userAgent": {
+    "mode": "append",
+    "value": "Url2Native/1.0"
+  },
+  "behavior": {
+    "pullToRefresh": true,
+    "smartCache": true,
+    "hardwareAcceleration": true,
+    "preventBrightnessDrop": true,
+    "externalSchemes": [
+      "whatsapp",
+      "upi",
+      "tez",
+      "phonepe",
+      "paytmmp",
+      "tel",
+      "mailto",
+      "sms",
+      "geo",
+      "intent"
+    ],
+    "keepExternalDomainsInApp": false,
+    "allowedDomains": []
+  },
+  "navigation": {
+    "enabled": false,
+    "position": "bottom",
+    "backgroundColor": "#111827",
+    "iconColor": "#FFFFFF",
+    "buttons": [
+      { "label": "Back", "action": "back" },
+      { "label": "Forward", "action": "forward" },
+      { "label": "Home", "action": "home" },
+      { "label": "Reload", "action": "reload" }
+    ]
+  },
+  "errorScreen": {
+    "title": "Connection Unavailable",
+    "message": "Unable to reach the server. Please check your internet connection and try again.",
+    "retryButtonText": "Retry Connection",
+    "accentColor": "#2563EB",
+    "backgroundColor": "#FFFFFF",
+    "textColor": "#111827"
+  },
+  "build": {
+    "android": true,
+    "windows": true,
+    "macos": true,
+    "linux": true
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RedZONERROR/Url2Native/schema/app.config.schema.json",
+  "title": "Url2Native Configuration",
+  "description": "Strict configuration schema for Url2Native applications.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "userAgent",
+    "behavior",
+    "navigation",
+    "errorScreen",
+    "build"
+  ],
+  "properties": {
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "packageId", "version", "url", "icon"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "packageId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "maxLength": 128
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://.+"
+        },
+        "icon": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\.png$"
+        }
+      }
+    },
+    "userAgent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "value"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["default", "replace", "append"]
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pullToRefresh",
+        "smartCache",
+        "hardwareAcceleration",
+        "preventBrightnessDrop",
+        "externalSchemes",
+        "keepExternalDomainsInApp",
+        "allowedDomains"
+      ],
+      "properties": {
+        "pullToRefresh": { "type": "boolean" },
+        "smartCache": { "type": "boolean" },
+        "hardwareAcceleration": { "type": "boolean" },
+        "preventBrightnessDrop": { "type": "boolean" },
+        "externalSchemes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9+.-]*$"
+          }
+        },
+        "keepExternalDomainsInApp": { "type": "boolean" },
+        "allowedDomains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253
+          }
+        }
+      }
+    },
+    "navigation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "position",
+        "backgroundColor",
+        "iconColor",
+        "buttons"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "position": {
+          "type": "string",
+          "enum": ["top", "bottom"]
+        },
+        "backgroundColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "iconColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "buttons": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label"],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
+              "action": {
+                "type": "string",
+                "enum": ["back", "forward", "home", "reload"]
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https?://.+"
+              }
+            },
+            "oneOf": [
+              { "required": ["action"] },
+              { "required": ["url"] }
+            ]
+          }
+        }
+      }
+    },
+    "errorScreen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "message",
+        "retryButtonText",
+        "accentColor",
+        "backgroundColor",
+        "textColor"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "retryButtonText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "accentColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "backgroundColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "textColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["android", "windows", "macos", "linux"],
+      "properties": {
+        "android": { "type": "boolean" },
+        "windows": { "type": "boolean" },
+        "macos": { "type": "boolean" },
+        "linux": { "type": "boolean" }
+      }
+    }
+  }
+}

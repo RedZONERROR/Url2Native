@@ -1,0 +1,376 @@
+name: Build and Release Url2Native
+
+on:
+  workflow_dispatch:
+    inputs:
+      android:
+        description: "Build Android APK (overrides app.config.json if set)"
+        required: false
+        type: choice
+        options:
+          - config
+          - "true"
+          - "false"
+        default: config
+      windows:
+        description: "Build Windows installers (overrides app.config.json if set)"
+        required: false
+        type: choice
+        options:
+          - config
+          - "true"
+          - "false"
+        default: config
+      macos:
+        description: "Build macOS Universal bundles (overrides app.config.json if set)"
+        required: false
+        type: choice
+        options:
+          - config
+          - "true"
+          - "false"
+        default: config
+      linux:
+        description: "Build Linux AppImage and DEB (overrides app.config.json if set)"
+        required: false
+        type: choice
+        options:
+          - config
+          - "true"
+          - "false"
+        default: config
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Validate Config and Plan Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      app_name: ${{ steps.plan.outputs.app_name }}
+      version: ${{ steps.plan.outputs.version }}
+      package_id: ${{ steps.plan.outputs.package_id }}
+      android: ${{ steps.plan.outputs.android }}
+      has_desktop: ${{ steps.plan.outputs.has_desktop }}
+      desktop_matrix: ${{ steps.plan.outputs.desktop_matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate app.config.json and icon.png
+        run: node scripts/configure.mjs --check-only
+
+      - name: Compute build matrix
+        id: plan
+        env:
+          INPUT_ANDROID: ${{ inputs.android || 'config' }}
+          INPUT_WINDOWS: ${{ inputs.windows || 'config' }}
+          INPUT_MACOS: ${{ inputs.macos || 'config' }}
+          INPUT_LINUX: ${{ inputs.linux || 'config' }}
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const cfg = JSON.parse(fs.readFileSync("app.config.json", "utf8"));
+            const resolveToggle = (envVal, cfgVal) => {
+              if (envVal === "true") return true;
+              if (envVal === "false") return false;
+              return Boolean(cfgVal);
+            };
+
+            const enableAndroid = resolveToggle(process.env.INPUT_ANDROID, cfg.build.android);
+            const enableWindows = resolveToggle(process.env.INPUT_WINDOWS, cfg.build.windows);
+            const enableMacos = resolveToggle(process.env.INPUT_MACOS, cfg.build.macos);
+            const enableLinux = resolveToggle(process.env.INPUT_LINUX, cfg.build.linux);
+
+            const targets = [];
+
+            if (enableWindows) {
+              targets.push(
+                { platform: "windows-x64", os: "windows-latest", target: "x86_64-pc-windows-msvc", bundles: "nsis,msi" },
+                { platform: "windows-arm64", os: "windows-latest", target: "aarch64-pc-windows-msvc", bundles: "nsis,msi" }
+              );
+            }
+            if (enableMacos) {
+              targets.push(
+                { platform: "macos-universal", os: "macos-latest", target: "universal-apple-darwin", bundles: "dmg,app" }
+              );
+            }
+            if (enableLinux) {
+              targets.push(
+                { platform: "linux-x64", os: "ubuntu-22.04", target: "x86_64-unknown-linux-gnu", bundles: "appimage,deb" },
+                { platform: "linux-arm64", os: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu", bundles: "appimage,deb" }
+              );
+            }
+
+            const out = process.env.GITHUB_OUTPUT;
+            fs.appendFileSync(out, `app_name=${cfg.app.name}\n`);
+            fs.appendFileSync(out, `version=${cfg.app.version}\n`);
+            fs.appendFileSync(out, `package_id=${cfg.app.packageId}\n`);
+            fs.appendFileSync(out, `android=${enableAndroid}\n`);
+            fs.appendFileSync(out, `has_desktop=${targets.length > 0}\n`);
+            fs.appendFileSync(out, `desktop_matrix=${JSON.stringify({ include: targets })}\n`);
+          '
+
+  build-android:
+    name: Build Android APK
+    needs: prepare
+    if: needs.prepare.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36 and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
+
+      - name: Setup Rust with Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run pre-build configuration
+        run: node scripts/configure.mjs
+
+      - name: Initialize Tauri Android project
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+        run: npx tauri android init
+
+      - name: Apply native Android overrides
+        run: node scripts/configure.mjs --android-only
+
+      - name: Resolve or create deterministic Android keystore
+        id: keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          REPO_BOUND_KEY: "${{ github.repository_id }}:${{ github.repository }}:url2native-vault-v1"
+        run: |
+          set -euo pipefail
+          KEYSTORE_WORK="${{ runner.temp }}/u2n-keystore"
+          mkdir -p "$KEYSTORE_WORK"
+          JKS_PATH="$KEYSTORE_WORK/release.jks"
+          META_PATH="$KEYSTORE_WORK/metadata.json"
+
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "[keystore] Using ANDROID_KEYSTORE_BASE64 from repository secrets."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$JKS_PATH"
+            STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD secret is required}"
+            KEY_ALIAS="${ANDROID_KEY_ALIAS:-url2native}"
+            KEY_PASS="${ANDROID_KEY_PASSWORD:-$STORE_PASS}"
+          else
+            export VAULT_PASSPHRASE
+            VAULT_PASSPHRASE=$(printf '%s' "$REPO_BOUND_KEY" | openssl dgst -sha256 -hex | awk '{print $NF}')
+            echo "::add-mask::$VAULT_PASSPHRASE"
+
+            VAULT_DIR="${{ runner.temp }}/vault-repo"
+            rm -rf "$VAULT_DIR"
+
+            if git ls-remote --exit-code --heads origin keystore-vault >/dev/null 2>&1; then
+              echo "[keystore] Fetching encrypted keystore from keystore-vault branch."
+              git clone --branch keystore-vault --single-branch --depth 1 "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
+              openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/keystore.enc" -out "$JKS_PATH" -pass env:VAULT_PASSPHRASE
+              openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/metadata.enc" -out "$META_PATH" -pass env:VAULT_PASSPHRASE
+
+              STORE_PASS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).storePassword)")
+              KEY_ALIAS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).keyAlias)")
+              KEY_PASS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).keyPassword)")
+            else
+              echo "[keystore] Generating new 2048-bit RSA keystore and storing encrypted vault."
+              STORE_PASS=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)
+              KEY_PASS="$STORE_PASS"
+              KEY_ALIAS="url2native"
+
+              SAFE_CN=$(printf '%s' "${{ needs.prepare.outputs.app_name }}" | tr -cd 'A-Za-z0-9 ._-')
+              [ -z "$SAFE_CN" ] && SAFE_CN="Url2Native"
+
+              keytool -genkeypair \
+                -v \
+                -keystore "$JKS_PATH" \
+                -alias "$KEY_ALIAS" \
+                -keyalg RSA \
+                -keysize 2048 \
+                -validity 10000 \
+                -storepass "$STORE_PASS" \
+                -keypass "$KEY_PASS" \
+                -dname "CN=$SAFE_CN, OU=Release, O=Url2Native, L=Global, S=Global, C=US"
+
+              node -e "require('fs').writeFileSync('$META_PATH', JSON.stringify({ storePassword: process.argv[1], keyAlias: process.argv[2], keyPassword: process.argv[3] }))" "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS"
+
+              git clone --no-checkout "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
+              cd "$VAULT_DIR"
+              git checkout --orphan keystore-vault
+              git rm -rf . >/dev/null 2>&1 || true
+
+              openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -in "$JKS_PATH" -out "$VAULT_DIR/keystore.enc" -pass env:VAULT_PASSPHRASE
+              openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -in "$META_PATH" -out "$VAULT_DIR/metadata.enc" -pass env:VAULT_PASSPHRASE
+
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add keystore.enc metadata.enc
+              git commit -m "chore: initialize encrypted Android keystore vault"
+              git push origin keystore-vault
+              cd "${{ github.workspace }}"
+            fi
+          fi
+
+          echo "::add-mask::$STORE_PASS"
+          echo "::add-mask::$KEY_PASS"
+          echo "RELEASE_STORE_FILE=$JKS_PATH" >> "$GITHUB_ENV"
+          echo "RELEASE_STORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+        run: npx tauri android build --apk --target aarch64 --target armv7 --target x86_64
+
+      - name: Collect Android APK artifacts
+        run: |
+          mkdir -p "${{ runner.temp }}/android-out"
+          find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk" -exec cp {} "${{ runner.temp }}/android-out/" \;
+          ls -la "${{ runner.temp }}/android-out/"
+
+      - name: Clean up decrypted keystore files
+        if: always()
+        run: |
+          rm -rf "${{ runner.temp }}/u2n-keystore" "${{ runner.temp }}/vault-repo"
+
+      - name: Upload Android APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: url2native-android
+          path: "${{ runner.temp }}/android-out/*.apk"
+          if-no-files-found: error
+
+  build-desktop:
+    name: Build Desktop (${{ matrix.platform }})
+    needs: prepare
+    if: needs.prepare.outputs.has_desktop == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.desktop_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-universal' && 'x86_64-apple-darwin,aarch64-apple-darwin' || matrix.target }}
+
+      - name: Install Linux system dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libdbus-1-dev
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run pre-build configuration
+        run: node scripts/configure.mjs
+
+      - name: Build Tauri desktop bundles
+        run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Archive macOS .app bundle
+        if: matrix.platform == 'macos-universal'
+        shell: bash
+        run: |
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          if [ -d "$BUNDLE_DIR" ]; then
+            cd "$BUNDLE_DIR"
+            for app in *.app; do
+              [ -d "$app" ] && zip -r "${app%.app}-macos-universal.app.zip" "$app"
+            done
+          fi
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: url2native-${{ matrix.platform }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.zip
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+          if-no-files-found: warn
+
+  release:
+    name: Publish GitHub Release
+    needs: [prepare, build-android, build-desktop]
+    if: always() && (needs.build-android.result == 'success' || needs.build-desktop.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec cp {} release-assets/ \;
+          ls -la release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.prepare.outputs.version }}-r${{ github.run_number }}"
+          name: "${{ needs.prepare.outputs.app_name }} v${{ needs.prepare.outputs.version }}"
+          body: |
+            Automated build for ${{ needs.prepare.outputs.app_name }} (${{ needs.prepare.outputs.package_id }}).
+            Version: ${{ needs.prepare.outputs.version }}
+          files: release-assets/*
+          generate_release_notes: false

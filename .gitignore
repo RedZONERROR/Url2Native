@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Rust & Tauri build outputs
+src-tauri/target/
+src-tauri/gen/
+
+# Generated web assets
+dist/
+ui/generated/
+
+# Android local artifacts & secrets
+*.jks
+*.keystore
+keystore.properties
+local.properties
+.gradle/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.log
