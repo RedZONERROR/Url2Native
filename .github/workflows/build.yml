@@ -4,40 +4,40 @@ on:
   workflow_dispatch:
     inputs:
       android:
-        description: "Build Android APK (overrides app.config.json if set)"
+        description: "Build Android APK (overrides app.config.json if not config)"
         required: false
         type: choice
         options:
           - config
-          - "true"
-          - "false"
+          - enable
+          - disable
         default: config
       windows:
-        description: "Build Windows installers (overrides app.config.json if set)"
+        description: "Build Windows installers (overrides app.config.json if not config)"
         required: false
         type: choice
         options:
           - config
-          - "true"
-          - "false"
+          - enable
+          - disable
         default: config
       macos:
-        description: "Build macOS Universal bundles (overrides app.config.json if set)"
+        description: "Build macOS Universal bundles (overrides app.config.json if not config)"
         required: false
         type: choice
         options:
           - config
-          - "true"
-          - "false"
+          - enable
+          - disable
         default: config
       linux:
-        description: "Build Linux AppImage and DEB (overrides app.config.json if set)"
+        description: "Build Linux AppImage and DEB (overrides app.config.json if not config)"
         required: false
         type: choice
         options:
           - config
-          - "true"
-          - "false"
+          - enable
+          - disable
         default: config
 
 concurrency:
@@ -82,8 +82,8 @@ jobs:
             const fs = require("node:fs");
             const cfg = JSON.parse(fs.readFileSync("app.config.json", "utf8"));
             const resolveToggle = (envVal, cfgVal) => {
-              if (envVal === "true") return true;
-              if (envVal === "false") return false;
+              if (envVal === "enable") return true;
+              if (envVal === "disable") return false;
               return Boolean(cfgVal);
             };
 
@@ -96,19 +96,19 @@ jobs:
 
             if (enableWindows) {
               targets.push(
-                { platform: "windows-x64", os: "windows-latest", target: "x86_64-pc-windows-msvc", bundles: "nsis,msi" },
-                { platform: "windows-arm64", os: "windows-latest", target: "aarch64-pc-windows-msvc", bundles: "nsis,msi" }
+                { platform: "windows-x64", os: "windows-latest", target: "x86_64-pc-windows-msvc", rust_targets: "x86_64-pc-windows-msvc", bundles: "nsis,msi" },
+                { platform: "windows-arm64", os: "windows-latest", target: "aarch64-pc-windows-msvc", rust_targets: "aarch64-pc-windows-msvc", bundles: "nsis,msi" }
               );
             }
             if (enableMacos) {
               targets.push(
-                { platform: "macos-universal", os: "macos-latest", target: "universal-apple-darwin", bundles: "dmg,app" }
+                { platform: "macos-universal", os: "macos-latest", target: "universal-apple-darwin", rust_targets: "x86_64-apple-darwin,aarch64-apple-darwin", bundles: "dmg,app" }
               );
             }
             if (enableLinux) {
               targets.push(
-                { platform: "linux-x64", os: "ubuntu-22.04", target: "x86_64-unknown-linux-gnu", bundles: "appimage,deb" },
-                { platform: "linux-arm64", os: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu", bundles: "appimage,deb" }
+                { platform: "linux-x64", os: "ubuntu-22.04", target: "x86_64-unknown-linux-gnu", rust_targets: "x86_64-unknown-linux-gnu", bundles: "appimage,deb" },
+                { platform: "linux-arm64", os: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu", rust_targets: "aarch64-unknown-linux-gnu", bundles: "appimage,deb" }
               );
             }
 
@@ -118,7 +118,7 @@ jobs:
             fs.appendFileSync(out, `package_id=${cfg.app.packageId}\n`);
             fs.appendFileSync(out, `android=${enableAndroid}\n`);
             fs.appendFileSync(out, `has_desktop=${targets.length > 0}\n`);
-            fs.appendFileSync(out, `desktop_matrix=${JSON.stringify({ include: targets })}\n`);
+            fs.appendFileSync(out, `desktop_matrix=${JSON.stringify(targets)}\n`);
           '
 
   build-android:
@@ -286,7 +286,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.desktop_matrix) }}
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.desktop_matrix) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -299,7 +300,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-universal' && 'x86_64-apple-darwin,aarch64-apple-darwin' || matrix.target }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Install Linux system dependencies
         if: startsWith(matrix.os, 'ubuntu')
