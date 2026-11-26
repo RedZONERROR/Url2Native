@@ -25,17 +25,22 @@ class PullToRefreshWrapper(
             setOnRefreshListener {
                 webView.reload()
             }
-
-            addView(
-                webView,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            )
         }
     } else {
         null
+    }
+
+    fun attachWebView() {
+        val container = containerView ?: return
+        if (webView.parent === container) return
+        (webView.parent as? ViewGroup)?.removeView(webView)
+        container.addView(
+            webView,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
     }
 
     fun finishRefreshing() {

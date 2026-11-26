@@ -41,8 +41,8 @@ android {
             }
         }
         getByName("release") {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 *fileTree(".") {
                     include("**/*.pro")

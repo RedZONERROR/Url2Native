@@ -35,13 +35,19 @@ fn retry_connection(window: WebviewWindow, state: State<'_, AppState>) -> Result
 }
 
 #[tauri::command]
-fn launch_with_prefixed_ua(
+async fn launch_with_prefixed_ua(
     app: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
     runtime_ua: String,
     online: Option<bool>,
 ) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window("app") {
+        let _ = existing.set_focus();
+        let _ = window.close();
+        return Ok(());
+    }
+
     let full_ua = build_prefixed_user_agent(&runtime_ua);
     let initial_url = if online.unwrap_or(true) {
         let target = Url::parse(&state.config.app.url)
@@ -277,14 +283,14 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 let _ = &target_url;
-                // Launch hidden bootstrap window first to capture the runtime WebView UA
-                // and prepend NativeApp/1.0 before opening the visible window.
+                // Launch bootstrap window first to capture the runtime WebView UA
+                // and prepend NativeApp/1.0 before opening the main app window.
                 create_configured_window(
                     handle,
                     "main",
                     WebviewUrl::App("index.html".into()),
                     None,
-                    false,
+                    true,
                     &setup_config,
                 )?;
             }

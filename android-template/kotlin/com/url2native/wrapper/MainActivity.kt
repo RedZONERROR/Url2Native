@@ -87,8 +87,12 @@ open class MainActivity : TauriActivity() {
             errorOverlayController = errorController
         )
 
-        attachContainers(webView, ptrWrapper, errorController, navBarView)
-        wrapWebViewClient(webView, ptrWrapper, errorController)
+        // Defer container wrapping and WebViewClient chaining until after Wry
+        // finishes setWebViewClient(...) and setContentView(webView).
+        webView.post {
+            attachContainers(webView, ptrWrapper, errorController, navBarView)
+            wrapWebViewClient(webView, ptrWrapper, errorController)
+        }
     }
 
     private fun attachContainers(
@@ -101,6 +105,8 @@ open class MainActivity : TauriActivity() {
         val index = parent.indexOfChild(webView)
         val originalParams = webView.layoutParams
         parent.removeView(webView)
+
+        ptrWrapper.attachWebView()
 
         val rootContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -147,6 +153,7 @@ open class MainActivity : TauriActivity() {
             view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
             windowInsets
         }
+        ViewCompat.requestApplyInsets(rootContainer)
     }
 
     private fun wrapWebViewClient(
@@ -156,6 +163,17 @@ open class MainActivity : TauriActivity() {
     ) {
         val existingClient = webView.webViewClient
         webView.webViewClient = object : WebViewClient() {
+
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): android.webkit.WebResourceResponse? {
+                return existingClient.shouldInterceptRequest(view, request)
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                existingClient.doUpdateVisitedHistory(view, url, isReload)
+            }
 
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
