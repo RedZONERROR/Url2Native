@@ -27,22 +27,6 @@ android {
         manifestPlaceholders["usesCleartextTraffic"] = "true"
     }
 
-    signingConfigs {
-        create("release") {
-            val storeFilePath = System.getenv("RELEASE_STORE_FILE")
-                ?: project.findProperty("RELEASE_STORE_FILE")?.toString()
-            if (!storeFilePath.isNullOrBlank()) {
-                storeFile = file(storeFilePath)
-                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
-                    ?: project.findProperty("RELEASE_STORE_PASSWORD")?.toString() ?: ""
-                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                    ?: project.findProperty("RELEASE_KEY_ALIAS")?.toString() ?: ""
-                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
-                    ?: project.findProperty("RELEASE_KEY_PASSWORD")?.toString() ?: ""
-            }
-        }
-    }
-
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -66,10 +50,6 @@ android {
                 }.files.toTypedArray(),
                 getDefaultProguardFile("proguard-android-optimize.txt")
             )
-            val releaseSigning = signingConfigs.findByName("release")
-            if (releaseSigning?.storeFile != null && releaseSigning.storeFile!!.exists()) {
-                signingConfig = releaseSigning
-            }
         }
     }
 

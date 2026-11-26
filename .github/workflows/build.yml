@@ -171,9 +171,16 @@ jobs:
       - name: Apply native Android overrides
         run: node scripts/configure.mjs --android-only
 
-      - name: Resolve or create deterministic Android keystore
-        id: keystore
+      - name: Build unsigned release APK
         env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}
+          NDK_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+        run: npx tauri android build --apk --target aarch64 --target armv7 --target x86_64
+
+      - name: Align and sign APK with apksigner
+        id: sign-apk
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -181,8 +188,14 @@ jobs:
           REPO_BOUND_KEY: "${{ github.repository_id }}:${{ github.repository }}:url2native-vault-v1"
         run: |
           set -euo pipefail
+          SDK_DIR="${ANDROID_HOME}"
+          BUILD_TOOLS="${SDK_DIR}/build-tools/36.0.0"
+          ZIPALIGN="${BUILD_TOOLS}/zipalign"
+          APKSIGNER="${BUILD_TOOLS}/apksigner"
+
           KEYSTORE_WORK="${{ runner.temp }}/u2n-keystore"
-          mkdir -p "$KEYSTORE_WORK"
+          OUT_DIR="${{ runner.temp }}/android-out"
+          mkdir -p "$KEYSTORE_WORK" "$OUT_DIR"
           JKS_PATH="$KEYSTORE_WORK/release.jks"
           META_PATH="$KEYSTORE_WORK/metadata.json"
 
@@ -202,7 +215,7 @@ jobs:
 
             if git ls-remote --exit-code --heads origin keystore-vault >/dev/null 2>&1; then
               echo "[keystore] Fetching encrypted keystore from keystore-vault branch."
-              git clone --branch keystore-vault --single-branch --depth 1 "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
+              git clone --quiet --branch keystore-vault --single-branch --depth 1 "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
               openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/keystore.enc" -out "$JKS_PATH" -pass env:VAULT_PASSPHRASE
               openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/metadata.enc" -out "$META_PATH" -pass env:VAULT_PASSPHRASE
 
@@ -219,7 +232,6 @@ jobs:
               [ -z "$SAFE_CN" ] && SAFE_CN="Url2Native"
 
               keytool -genkeypair \
-                -v \
                 -keystore "$JKS_PATH" \
                 -alias "$KEY_ALIAS" \
                 -keyalg RSA \
@@ -231,7 +243,7 @@ jobs:
 
               node -e "require('fs').writeFileSync('$META_PATH', JSON.stringify({ storePassword: process.argv[1], keyAlias: process.argv[2], keyPassword: process.argv[3] }))" "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS"
 
-              git clone --no-checkout "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
+              git clone --quiet --no-checkout "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
               cd "$VAULT_DIR"
               git checkout --orphan keystore-vault
               git rm -rf . >/dev/null 2>&1 || true
@@ -242,36 +254,41 @@ jobs:
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
               git add keystore.enc metadata.enc
-              git commit -m "chore: initialize encrypted Android keystore vault"
-              git push origin keystore-vault
+              git commit --quiet -m "chore: initialize encrypted Android keystore vault"
+              git push --quiet origin keystore-vault
               cd "${{ github.workspace }}"
             fi
           fi
 
           echo "::add-mask::$STORE_PASS"
           echo "::add-mask::$KEY_PASS"
-          echo "RELEASE_STORE_FILE=$JKS_PATH" >> "$GITHUB_ENV"
-          echo "RELEASE_STORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
-          echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "RELEASE_KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+          export STORE_PASS KEY_PASS
 
-      - name: Build signed release APK
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}
-          NDK_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
-        run: |
-          set -o pipefail
-          if ! npx tauri android build -vv --apk --target aarch64 --target armv7 --target x86_64; then
-            echo "[android] Tauri build failed; running Gradle directly for full Kotlin diagnostics..."
-            (cd src-tauri/gen/android && ./gradlew assembleUniversalRelease --console=plain --no-daemon --stacktrace)
+          FOUND=0
+          while IFS= read -r -d '' apk; do
+            FOUND=1
+            base=$(basename "$apk")
+            aligned="$KEYSTORE_WORK/aligned-${base}"
+            signed_name="${base/-unsigned/}"
+            signed="$OUT_DIR/${signed_name}"
+
+            echo "[apksigner] Aligning and signing $base -> $signed_name"
+            "$ZIPALIGN" -p -f 4 "$apk" "$aligned"
+            "$APKSIGNER" sign \
+              --ks "$JKS_PATH" \
+              --ks-key-alias "$KEY_ALIAS" \
+              --ks-pass "env:STORE_PASS" \
+              --key-pass "env:KEY_PASS" \
+              --out "$signed" \
+              "$aligned"
+            "$APKSIGNER" verify "$signed"
+          done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -path "*/release/*.apk" -print0)
+
+          if [ "$FOUND" -eq 0 ]; then
+            echo "[apksigner] ERROR: No APK files produced."
             exit 1
           fi
-
-      - name: Collect Android APK artifacts
-        run: |
-          mkdir -p "${{ runner.temp }}/android-out"
-          find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk" -exec cp {} "${{ runner.temp }}/android-out/" \;
-          ls -la "${{ runner.temp }}/android-out/"
+          ls -la "$OUT_DIR"
 
       - name: Clean up decrypted keystore files
         if: always()
