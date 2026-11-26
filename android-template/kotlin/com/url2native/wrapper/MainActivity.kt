@@ -188,7 +188,7 @@ open class MainActivity : TauriActivity() {
                 error: WebResourceError?
             ) {
                 // Only show the branded offline overlay for main-frame network errors.
-                if (request?.isForMainFrame == true && error?.errorCode != ERROR_CANCELLED) {
+                if (request?.isForMainFrame == true && error?.errorCode != WebViewClient.ERROR_CANCELLED) {
                     hasMainFrameError = true
                     ptrWrapper.finishRefreshing()
                     errorController.showError(request.url?.toString())
