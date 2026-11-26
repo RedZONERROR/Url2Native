@@ -6,6 +6,7 @@ const EMBEDDED_CONFIG: &str = include_str!("../app.config.json");
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub app: AppSection,
+    #[serde(default)]
     pub user_agent: UserAgentSection,
     pub behavior: BehaviorSection,
     pub navigation: NavigationSection,
@@ -23,16 +24,19 @@ pub struct AppSection {
     pub icon: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserAgentSection {
+    #[serde(default)]
     pub mode: UserAgentMode,
+    #[serde(default)]
     pub value: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UserAgentMode {
+    #[default]
     Default,
     Replace,
     Append,

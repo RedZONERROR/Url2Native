@@ -1,36 +1,16 @@
-use crate::config::{UserAgentMode, UserAgentSection};
+pub const NATIVE_APP_USER_AGENT_PREFIX: &str = "NativeApp/1.0";
 
-/// Resolves a direct User-Agent override when the mode does not require
-/// querying the runtime WebView engine first.
-pub fn resolve_static_user_agent(config: &UserAgentSection) -> Option<String> {
-    match config.mode {
-        UserAgentMode::Default => None,
-        UserAgentMode::Replace => {
-            let trimmed = config.value.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        }
-        UserAgentMode::Append => None,
-    }
-}
-
-/// Combines the runtime native WebView User-Agent with the configured suffix.
-pub fn build_appended_user_agent(runtime_ua: &str, suffix: &str) -> String {
+/// Prepends `NativeApp/1.0` to the runtime native WebView User-Agent string
+/// without replacing the underlying browser engine identification.
+pub fn build_prefixed_user_agent(runtime_ua: &str) -> String {
     let base = runtime_ua.trim();
-    let extra = suffix.trim();
     if base.is_empty() {
-        return extra.to_string();
+        return NATIVE_APP_USER_AGENT_PREFIX.to_string();
     }
-    if extra.is_empty() {
+    if base.starts_with(NATIVE_APP_USER_AGENT_PREFIX) {
         return base.to_string();
     }
-    if base.contains(extra) {
-        return base.to_string();
-    }
-    format!("{base} {extra}")
+    format!("{NATIVE_APP_USER_AGENT_PREFIX} {base}")
 }
 
 #[cfg(test)]
@@ -38,32 +18,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn append_combines_runtime_and_custom_suffix() {
-        let out = build_appended_user_agent("Mozilla/5.0", "Url2Native/1.0");
-        assert_eq!(out, "Mozilla/5.0 Url2Native/1.0");
-    }
-
-    #[test]
-    fn append_avoids_duplicate_suffix() {
-        let out = build_appended_user_agent("Mozilla/5.0 Url2Native/1.0", "Url2Native/1.0");
-        assert_eq!(out, "Mozilla/5.0 Url2Native/1.0");
-    }
-
-    #[test]
-    fn resolve_static_handles_modes() {
-        let replace = UserAgentSection {
-            mode: UserAgentMode::Replace,
-            value: "CustomAgent/2.0".into(),
-        };
+    fn prepends_native_app_prefix() {
+        let out = build_prefixed_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
         assert_eq!(
-            resolve_static_user_agent(&replace),
-            Some("CustomAgent/2.0".into())
+            out,
+            "NativeApp/1.0 Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         );
+    }
 
-        let default = UserAgentSection {
-            mode: UserAgentMode::Default,
-            value: "Ignored".into(),
-        };
-        assert_eq!(resolve_static_user_agent(&default), None);
+    #[test]
+    fn avoids_duplicate_prefix() {
+        let out = build_prefixed_user_agent("NativeApp/1.0 Mozilla/5.0");
+        assert_eq!(out, "NativeApp/1.0 Mozilla/5.0");
+    }
+
+    #[test]
+    fn handles_empty_runtime_ua() {
+        assert_eq!(build_prefixed_user_agent("   "), "NativeApp/1.0");
     }
 }

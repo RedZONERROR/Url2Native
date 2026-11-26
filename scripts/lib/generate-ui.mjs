@@ -27,7 +27,6 @@ function buildBootstrapIndexHtml(config) {
   const safeUrlJs = escapeJsString(config.app.url);
   const safeBg = escapeHtml(config.errorScreen.backgroundColor);
   const safeText = escapeHtml(config.errorScreen.textColor);
-  const uaMode = escapeJsString(config.userAgent.mode);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -66,14 +65,15 @@ function buildBootstrapIndexHtml(config) {
   <script>
     (function () {
       var targetUrl = "${safeUrlJs}";
-      var uaMode = "${uaMode}";
       var invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 
-      if (uaMode === "append" && typeof invoke === "function") {
-        invoke("launch_with_appended_ua", { runtimeUa: navigator.userAgent })
-          .catch(function () {
-            window.location.replace(targetUrl);
-          });
+      if (typeof invoke === "function") {
+        invoke("launch_with_prefixed_ua", {
+          runtimeUa: navigator.userAgent,
+          online: navigator.onLine
+        }).catch(function () {
+          window.location.replace(navigator.onLine ? targetUrl : "offline.html");
+        });
         return;
       }
 

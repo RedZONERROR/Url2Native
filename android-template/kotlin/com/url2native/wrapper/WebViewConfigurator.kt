@@ -117,22 +117,14 @@ object WebViewConfigurator {
             builtInZoomControls = true
             displayZoomControls = false
 
-            when (config.userAgentMode.lowercase()) {
-                "replace" -> {
-                    if (config.userAgentValue.isNotBlank()) {
-                        userAgentString = config.userAgentValue
-                    }
-                }
-                "append" -> {
-                    val defaultUa = WebSettings.getDefaultUserAgent(context)
-                    val suffix = config.userAgentValue.trim()
-                    if (suffix.isNotEmpty() && !defaultUa.contains(suffix)) {
-                        userAgentString = "$defaultUa $suffix"
-                    }
-                }
-                else -> {
-                    // Preserve default system WebView User-Agent.
-                }
+            val defaultUa = WebSettings.getDefaultUserAgent(context).trim()
+            val prefix = "NativeApp/1.0"
+            userAgentString = if (defaultUa.isEmpty()) {
+                prefix
+            } else if (defaultUa.startsWith(prefix)) {
+                defaultUa
+            } else {
+                "$prefix $defaultUa"
             }
         }
 

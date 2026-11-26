@@ -11,11 +11,9 @@ use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
 use config::AppConfig;
-#[cfg(desktop)]
-use config::UserAgentMode;
 use external_links::{evaluate_navigation, NavigationDecision};
 use power_manager::WakeLockGuard;
-use user_agent::{build_appended_user_agent, resolve_static_user_agent};
+use user_agent::build_prefixed_user_agent;
 
 struct AppState {
     config: AppConfig,
@@ -37,20 +35,26 @@ fn retry_connection(window: WebviewWindow, state: State<'_, AppState>) -> Result
 }
 
 #[tauri::command]
-fn launch_with_appended_ua(
+fn launch_with_prefixed_ua(
     app: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
     runtime_ua: String,
+    online: Option<bool>,
 ) -> Result<(), String> {
-    let full_ua = build_appended_user_agent(&runtime_ua, &state.config.user_agent.value);
-    let target = Url::parse(&state.config.app.url)
-        .map_err(|err| format!("Invalid target URL: {err}"))?;
+    let full_ua = build_prefixed_user_agent(&runtime_ua);
+    let initial_url = if online.unwrap_or(true) {
+        let target = Url::parse(&state.config.app.url)
+            .map_err(|err| format!("Invalid target URL: {err}"))?;
+        WebviewUrl::External(target)
+    } else {
+        WebviewUrl::App("offline.html".into())
+    };
 
     create_configured_window(
         &app,
         "app",
-        WebviewUrl::External(target),
+        initial_url,
         Some(full_ua),
         true,
         &state.config,
@@ -263,7 +267,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_config,
             retry_connection,
-            launch_with_appended_ua
+            launch_with_prefixed_ua
         ])
         .setup(move |app| {
             let handle = app.handle();
@@ -272,37 +276,26 @@ pub fn run() {
 
             #[cfg(desktop)]
             {
-                if setup_config.user_agent.mode == UserAgentMode::Append {
-                    // Launch hidden bootstrap window first to read runtime WebView UA.
-                    create_configured_window(
-                        handle,
-                        "main",
-                        WebviewUrl::App("index.html".into()),
-                        None,
-                        false,
-                        &setup_config,
-                    )?;
-                } else {
-                    let static_ua = resolve_static_user_agent(&setup_config.user_agent);
-                    create_configured_window(
-                        handle,
-                        "main",
-                        WebviewUrl::External(target_url),
-                        static_ua,
-                        true,
-                        &setup_config,
-                    )?;
-                }
+                let _ = &target_url;
+                // Launch hidden bootstrap window first to capture the runtime WebView UA
+                // and prepend NativeApp/1.0 before opening the visible window.
+                create_configured_window(
+                    handle,
+                    "main",
+                    WebviewUrl::App("index.html".into()),
+                    None,
+                    false,
+                    &setup_config,
+                )?;
             }
 
             #[cfg(mobile)]
             {
-                let static_ua = resolve_static_user_agent(&setup_config.user_agent);
                 create_configured_window(
                     handle,
                     "main",
                     WebviewUrl::External(target_url),
-                    static_ua,
+                    None,
                     true,
                     &setup_config,
                 )?;
