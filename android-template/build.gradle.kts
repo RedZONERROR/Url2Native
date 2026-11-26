@@ -60,7 +60,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
-                *fileTree(".") { include("**/*.pro") }.toList().toTypedArray(),
+                *fileTree(".") {
+                    include("**/*.pro")
+                    exclude("build/**")
+                }.files.toTypedArray(),
                 getDefaultProguardFile("proguard-android-optimize.txt")
             )
             val releaseSigning = signingConfigs.findByName("release")
@@ -101,6 +104,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("com.google.android.material:material:1.12.0")

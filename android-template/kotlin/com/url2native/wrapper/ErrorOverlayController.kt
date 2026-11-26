@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.annotation.Keep
 
 class ErrorOverlayController(
     context: Context,
@@ -52,7 +53,9 @@ class ErrorOverlayController(
         }
     }
 
+    @Keep
     private inner class ErrorBridge {
+        @Keep
         @JavascriptInterface
         fun retry() {
             this@ErrorOverlayController.retry()

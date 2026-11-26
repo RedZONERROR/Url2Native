@@ -259,7 +259,7 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}
           NDK_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
-        run: npx tauri android build --apk --target aarch64 --target armv7 --target x86_64
+        run: npx tauri android build -v --apk --target aarch64 --target armv7 --target x86_64
 
       - name: Collect Android APK artifacts
         run: |
