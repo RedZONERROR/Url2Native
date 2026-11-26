@@ -27,7 +27,7 @@ open class MainActivity : TauriActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         appConfig = Url2NativeConfig.load(this)
-        brightnessWakeManager = BrightnessWakeManager(appConfig.behavior.preventBrightnessDrop)
+        brightnessWakeManager = BrightnessWakeManager(appConfig.preventBrightnessDrop)
 
         super.onCreate(savedInstanceState)
 
@@ -76,7 +76,7 @@ open class MainActivity : TauriActivity() {
         val ptrWrapper = PullToRefreshWrapper(
             context = this,
             webView = webView,
-            enabled = appConfig.behavior.pullToRefresh
+            enabled = appConfig.pullToRefresh
         )
         pullToRefreshWrapper = ptrWrapper
 
@@ -188,7 +188,9 @@ open class MainActivity : TauriActivity() {
                 error: WebResourceError?
             ) {
                 // Only show the branded offline overlay for main-frame network errors.
-                if (request?.isForMainFrame == true && error?.errorCode != WebViewClient.ERROR_CANCELLED) {
+                val desc = error?.description?.toString() ?: ""
+                val isAborted = desc.contains("ERR_ABORTED", ignoreCase = true)
+                if (request?.isForMainFrame == true && !isAborted) {
                     hasMainFrameError = true
                     ptrWrapper.finishRefreshing()
                     errorController.showError(request.url?.toString())
