@@ -259,7 +259,13 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}
           NDK_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
-        run: npx tauri android build -v --apk --target aarch64 --target armv7 --target x86_64
+        run: |
+          set -o pipefail
+          if ! npx tauri android build -vv --apk --target aarch64 --target armv7 --target x86_64; then
+            echo "[android] Tauri build failed; running Gradle directly for full Kotlin diagnostics..."
+            (cd src-tauri/gen/android && ./gradlew assembleUniversalRelease --console=plain --no-daemon --stacktrace)
+            exit 1
+          fi
 
       - name: Collect Android APK artifacts
         run: |
