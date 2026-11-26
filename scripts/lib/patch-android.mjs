@@ -79,10 +79,15 @@ export function patchAndroid({ rootDir, config }) {
   // 2. Copy build.gradle.kts override
   fs.copyFileSync(templateGradlePath, path.join(genAppDir, "build.gradle.kts"));
 
-  // 3. Copy modular Kotlin wrapper classes
+  // 3. Copy modular Kotlin wrapper classes and resolve __PACKAGE_ID__
   const wrapperSrc = path.join(templateDir, "kotlin", "com", "url2native", "wrapper");
   const wrapperDst = path.join(genMainDir, "kotlin", "com", "url2native", "wrapper");
   copyDirRecursive(wrapperSrc, wrapperDst);
+  const mainActivityDst = path.join(wrapperDst, "MainActivity.kt");
+  if (fs.existsSync(mainActivityDst)) {
+    const activitySrc = fs.readFileSync(mainActivityDst, "utf8");
+    fs.writeFileSync(mainActivityDst, activitySrc.replace(/__PACKAGE_ID__/g, packageId), "utf8");
+  }
 
   // 4. Generate entry MainActivity.kt in configured packageId and remove duplicate generated stub
   const packageSegments = packageId.split(".");

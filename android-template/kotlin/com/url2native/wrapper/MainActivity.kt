@@ -14,7 +14,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import app.tauri.TauriActivity
+import __PACKAGE_ID__.TauriActivity
 
 open class MainActivity : TauriActivity() {
 

@@ -4,11 +4,15 @@ mod power_manager;
 mod user_agent;
 
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+#[cfg(desktop)]
+use tauri::Manager;
+use tauri::{AppHandle, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
-use config::{AppConfig, UserAgentMode};
+use config::AppConfig;
+#[cfg(desktop)]
+use config::UserAgentMode;
 use external_links::{evaluate_navigation, NavigationDecision};
 use power_manager::WakeLockGuard;
 use user_agent::{build_appended_user_agent, resolve_static_user_agent};
