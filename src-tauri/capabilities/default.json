@@ -5,6 +5,7 @@
   "windows": ["main", "app"],
   "permissions": [
     "core:default",
+    "core:window:allow-show",
     "opener:default"
   ]
 }

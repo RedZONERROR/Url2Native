@@ -42,12 +42,6 @@ async fn launch_with_prefixed_ua(
     runtime_ua: String,
     online: Option<bool>,
 ) -> Result<(), String> {
-    if let Some(existing) = app.get_webview_window("app") {
-        let _ = existing.set_focus();
-        let _ = window.close();
-        return Ok(());
-    }
-
     let full_ua = build_prefixed_user_agent(&runtime_ua);
     let initial_url = if online.unwrap_or(true) {
         let target = Url::parse(&state.config.app.url)
@@ -57,7 +51,7 @@ async fn launch_with_prefixed_ua(
         WebviewUrl::App("offline.html".into())
     };
 
-    create_configured_window(
+    let app_window = create_configured_window(
         &app,
         "app",
         initial_url,
@@ -67,6 +61,11 @@ async fn launch_with_prefixed_ua(
     )
     .map_err(|err| format!("Failed to create application window: {err}"))?;
 
+    #[cfg(desktop)]
+    {
+        let _ = app_window.set_focus();
+    }
+    let _ = &app_window;
     let _ = window.close();
     Ok(())
 }
@@ -283,14 +282,14 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 let _ = &target_url;
-                // Launch bootstrap window first to capture the runtime WebView UA
-                // and prepend NativeApp/1.0 before opening the main app window.
+                // Launch hidden bootstrap window first to capture the runtime WebView UA
+                // and prepend NativeApp/1.0 before opening the visible window.
                 create_configured_window(
                     handle,
                     "main",
                     WebviewUrl::App("index.html".into()),
                     None,
-                    true,
+                    false,
                     &setup_config,
                 )?;
             }

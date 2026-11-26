@@ -72,6 +72,10 @@ function buildBootstrapIndexHtml(config) {
           runtimeUa: navigator.userAgent,
           online: navigator.onLine
         }).catch(function () {
+          var winApi = window.__TAURI__ && window.__TAURI__.window;
+          if (winApi && typeof winApi.getCurrentWindow === "function") {
+            winApi.getCurrentWindow().show().catch(function () {});
+          }
           window.location.replace(navigator.onLine ? targetUrl : "offline.html");
         });
         return;

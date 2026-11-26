@@ -1,11 +1,14 @@
 package com.url2native.wrapper
 
 import android.graphics.Bitmap
+import android.net.http.SslError
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -45,6 +48,7 @@ open class MainActivity : TauriActivity() {
                     } else {
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true
                     }
                 }
             }
@@ -75,7 +79,6 @@ open class MainActivity : TauriActivity() {
 
         val ptrWrapper = PullToRefreshWrapper(
             context = this,
-            webView = webView,
             enabled = appConfig.pullToRefresh
         )
         pullToRefreshWrapper = ptrWrapper
@@ -87,12 +90,8 @@ open class MainActivity : TauriActivity() {
             errorOverlayController = errorController
         )
 
-        // Defer container wrapping and WebViewClient chaining until after Wry
-        // finishes setWebViewClient(...) and setContentView(webView).
-        webView.post {
-            attachContainers(webView, ptrWrapper, errorController, navBarView)
-            wrapWebViewClient(webView, ptrWrapper, errorController)
-        }
+        attachContainers(webView, ptrWrapper, errorController, navBarView)
+        wrapWebViewClient(webView, ptrWrapper, errorController)
     }
 
     private fun attachContainers(
@@ -101,12 +100,13 @@ open class MainActivity : TauriActivity() {
         errorController: ErrorOverlayController,
         navBarView: View?
     ) {
-        val parent = webView.parent as? ViewGroup ?: return
-        val index = parent.indexOfChild(webView)
-        val originalParams = webView.layoutParams
-        parent.removeView(webView)
-
-        ptrWrapper.attachWebView()
+        val parent = webView.parent as? ViewGroup
+        val index = parent?.indexOfChild(webView) ?: -1
+        val originalParams = webView.layoutParams ?: ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        parent?.removeView(webView)
 
         val rootContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -121,7 +121,7 @@ open class MainActivity : TauriActivity() {
             )
         }
 
-        val webContainer: View = ptrWrapper.containerView ?: webView
+        val webContainer: View = ptrWrapper.wrap(webView)
         contentFrame.addView(
             webContainer,
             FrameLayout.LayoutParams(
@@ -144,7 +144,11 @@ open class MainActivity : TauriActivity() {
             }
         }
 
-        parent.addView(rootContainer, index)
+        if (parent != null && index >= 0) {
+            parent.addView(rootContainer, index)
+        } else {
+            setContentView(rootContainer)
+        }
 
         ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { view, windowInsets ->
             val insets = windowInsets.getInsets(
@@ -153,7 +157,6 @@ open class MainActivity : TauriActivity() {
             view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
             windowInsets
         }
-        ViewCompat.requestApplyInsets(rootContainer)
     }
 
     private fun wrapWebViewClient(
@@ -167,12 +170,11 @@ open class MainActivity : TauriActivity() {
             override fun shouldInterceptRequest(
                 view: WebView?,
                 request: WebResourceRequest?
-            ): android.webkit.WebResourceResponse? {
-                return existingClient.shouldInterceptRequest(view, request)
-            }
-
-            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                existingClient.doUpdateVisitedHistory(view, url, isReload)
+            ): WebResourceResponse? {
+                if (view != null && request != null) {
+                    return existingClient.shouldInterceptRequest(view, request)
+                }
+                return super.shouldInterceptRequest(view, request)
             }
 
             override fun shouldOverrideUrlLoading(
@@ -198,6 +200,22 @@ open class MainActivity : TauriActivity() {
                     errorController.hideError()
                 }
                 existingClient.onPageFinished(view, url)
+            }
+
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                existingClient.onPageCommitVisible(view, url)
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                existingClient.doUpdateVisitedHistory(view, url, isReload)
+            }
+
+            override fun onReceivedSslError(
+                view: WebView?,
+                handler: SslErrorHandler?,
+                error: SslError?
+            ) {
+                existingClient.onReceivedSslError(view, handler, error)
             }
 
             override fun onReceivedError(
