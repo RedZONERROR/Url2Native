@@ -63,7 +63,7 @@ fn build_init_script(config: &AppConfig) -> String {
     let error_json = serde_json::to_string(&config.error_screen).unwrap_or_else(|_| "{}".into());
 
     format!(
-        r#"(function () {{
+        r####"(function () {{
   var NAV_CFG = {nav_json};
   var HOME_URL = {home_url_json};
   var ERR_CFG = {error_json};
@@ -171,7 +171,7 @@ fn build_init_script(config: &AppConfig) -> String {
   }}
 
   window.addEventListener("offline", showOfflineBanner);
-}})();"#
+}})();"####
     )
 }
 
