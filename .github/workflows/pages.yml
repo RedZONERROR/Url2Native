@@ -1,0 +1,100 @@
+name: Deploy Web Configurator (GitHub Pages)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Package Web Configurator Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify GitHub Pages is enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh api "repos/${{ github.repository }}/pages" >/dev/null 2>&1; then
+            echo "::error::GitHub Pages is not enabled yet. Open Settings -> Pages, set Source to 'GitHub Actions' once, and re-run this workflow."
+            exit 1
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "docs"
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  update-readme:
+    name: Update README Live Configurator Link
+    needs: deploy
+    if: ${{ needs.deploy.outputs.page_url != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update dynamic Web Configurator URL in README.md
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const url = (process.env.PAGE_URL || "").trim();
+            if (!url) process.exit(0);
+            const readme = fs.readFileSync("README.md", "utf8");
+            const pattern = /<!-- CONFIGURATOR_URL_START -->[\s\S]*?<!-- CONFIGURATOR_URL_END -->/g;
+            const replacement = `<!-- CONFIGURATOR_URL_START -->\n**Live Web Configurator:** ${url}\n<!-- CONFIGURATOR_URL_END -->`;
+            const updated = readme.replace(pattern, replacement);
+            if (updated !== readme) {
+              fs.writeFileSync("README.md", updated, "utf8");
+              console.log("Updated README.md with:", url);
+            } else {
+              console.log("README.md already points to:", url);
+            }
+          '
+
+      - name: Commit updated README link if changed
+        run: |
+          if ! git diff --quiet -- README.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md
+            git commit -m "Update live Web Configurator link [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
