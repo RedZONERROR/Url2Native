@@ -79,6 +79,7 @@ Url2Native/
 |-- scripts/
 |   |-- configure.mjs                   # CLI entry point for pre-build pipeline
 |   |-- apply-ci-overrides.mjs          # Resolves GitHub Actions Run workflow inputs and ABI mode
+|   |-- fetch-ci-icon.mjs               # Downloads/converts optional app_icon_url to 1024x1024 PNG
 |   |-- lib/
 |       |-- validator.mjs               # Validates app.config.json and icon.png
 |       |-- icon-generator.mjs          # Generates Android, Windows, macOS, Linux icons
@@ -137,7 +138,7 @@ Url2Native/
 4. **Trigger the on-demand build**
    - Commit and push your changes to `app.config.json` or `icon.png`.
    - Open the **Actions** tab, select **Build and Release Url2Native**, and click **Run workflow**.
-   - In the **Run workflow** dialog you can also override `app_name`, `package_id`, `app_url`, `app_version`, `user_agent_mode`/`user_agent_value`, `navigation_*`, `behavior` toggles, `android_abis` (`split-and-universal`, `split-only`, or `universal-only`), and target platforms without editing `app.config.json` (any blank/`config` input falls back to `app.config.json`).
+   - In the **Run workflow** dialog you can also override `app_name`, `package_id`, `app_url`, `app_version`, `app_icon_url` (optional image URL, falling back to repo `icon.png` when blank), `user_agent_mode`/`user_agent_value`, `navigation_*`, `behavior` toggles, `android_abis` (`split-and-universal`, `split-only`, or `universal-only`), and target platforms without editing `app.config.json` (any blank/`config` input falls back to `app.config.json`).
 
 5. **Download your installers**
    - Once the workflow completes, open **Releases** in your repository sidebar to download the signed `.apk`, `.exe`, `.msi`, `.dmg`, `.app.zip`, `.AppImage`, and `.deb` files.

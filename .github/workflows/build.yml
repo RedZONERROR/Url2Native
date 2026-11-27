@@ -68,6 +68,11 @@ on:
         required: false
         type: string
         default: ""
+      app_icon_url:
+        description: "Optional app icon image URL (blank = use fallback icon.png)"
+        required: false
+        type: string
+        default: ""
       user_agent_mode:
         description: "User-Agent mode (overrides app.config.json if not config)"
         required: false
@@ -188,6 +193,8 @@ jobs:
       has_desktop: ${{ steps.plan.outputs.has_desktop }}
       desktop_matrix: ${{ steps.plan.outputs.desktop_matrix }}
       resolved_config_b64: ${{ steps.plan.outputs.resolved_config_b64 }}
+      custom_icon: ${{ steps.fetch_icon.outputs.custom_icon }}
+      icon_dir: ${{ steps.plan.outputs.icon_dir }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -223,6 +230,21 @@ jobs:
           INPUT_ALLOWED_DOMAINS: ${{ inputs.allowed_domains || '' }}
           INPUT_EXTERNAL_SCHEMES: ${{ inputs.external_schemes || '' }}
         run: node scripts/apply-ci-overrides.mjs --write
+
+      - name: Fetch optional app icon from URL (or keep fallback)
+        id: fetch_icon
+        env:
+          INPUT_APP_ICON_URL: ${{ inputs.app_icon_url || '' }}
+        run: node scripts/fetch-ci-icon.mjs
+
+      - name: Upload custom workflow icon artifact
+        if: steps.fetch_icon.outputs.custom_icon == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-icon
+          path: "${{ steps.fetch_icon.outputs.icon_path }}"
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Validate resolved app.config.json and icon.png
         run: node scripts/configure.mjs --check-only
@@ -269,6 +291,13 @@ jobs:
         env:
           RESOLVED_CFG_B64: ${{ needs.prepare.outputs.resolved_config_b64 }}
         run: node scripts/apply-ci-overrides.mjs --restore
+
+      - name: Download custom workflow icon if provided
+        if: needs.prepare.outputs.custom_icon == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: resolved-icon
+          path: "${{ needs.prepare.outputs.icon_dir }}"
 
       - name: Run pre-build configuration
         run: node scripts/configure.mjs
@@ -498,6 +527,13 @@ jobs:
           RESOLVED_CFG_B64: ${{ needs.prepare.outputs.resolved_config_b64 }}
         run: node scripts/apply-ci-overrides.mjs --restore
 
+      - name: Download custom workflow icon if provided
+        if: needs.prepare.outputs.custom_icon == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: resolved-icon
+          path: "${{ needs.prepare.outputs.icon_dir }}"
+
       - name: Run pre-build configuration
         run: node scripts/configure.mjs
 
@@ -538,6 +574,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: "url2native-*"
           path: artifacts
 
       - name: Flatten release assets

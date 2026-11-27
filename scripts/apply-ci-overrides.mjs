@@ -145,7 +145,8 @@ export function applyCiOverrides(config, env = process.env) {
       android_split: androidSplit,
       android_universal: androidUniversal,
       has_desktop: targets.length > 0,
-      desktop_matrix: JSON.stringify(targets)
+      desktop_matrix: JSON.stringify(targets),
+      icon_dir: path.posix.dirname(String(cfg.app.icon || "icon.png").replace(/\\/g, "/"))
     }
   };
 }
@@ -185,6 +186,7 @@ function main() {
       `android_universal=${plan.android_universal}`,
       `has_desktop=${plan.has_desktop}`,
       `desktop_matrix=${plan.desktop_matrix}`,
+      `icon_dir=${plan.icon_dir}`,
       `resolved_config_b64=${Buffer.from(serialized, "utf8").toString("base64")}`
     ];
     fs.appendFileSync(outFile, `${lines.join("\n")}\n`, "utf8");
