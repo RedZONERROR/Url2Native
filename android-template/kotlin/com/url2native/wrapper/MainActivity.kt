@@ -1,11 +1,18 @@
 package com.url2native.wrapper
 
+import android.app.DownloadManager
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
 import android.net.http.SslError
 import android.os.Bundle
+import android.os.Environment
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
+import android.webkit.URLUtil
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -13,6 +20,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -66,6 +74,7 @@ open class MainActivity : TauriActivity() {
 
     override fun onPause() {
         brightnessWakeManager.onPause(this)
+        WebViewConfigurator.flushCookies()
         super.onPause()
     }
 
@@ -92,9 +101,61 @@ open class MainActivity : TauriActivity() {
         )
 
         wrapWebViewClient(webView, ptrWrapper, errorController)
+        attachDownloadListener(webView)
         webView.post {
             if (!isFinishing && !isDestroyed) {
                 attachContainers(webView, ptrWrapper, errorController, navBarView)
+            }
+        }
+    }
+
+    private fun attachDownloadListener(webView: WebView) {
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+            if (url.isNullOrBlank()) return@setDownloadListener
+            val uri = Uri.parse(url)
+            val scheme = uri.scheme?.lowercase() ?: ""
+            if (scheme != "http" && scheme != "https") {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                } catch (_: Exception) {
+                    // Ignore unsupported download URIs.
+                }
+                return@setDownloadListener
+            }
+
+            try {
+                val guessed = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                val safeFilename = java.io.File(guessed).name.ifBlank { "download" }
+                val request = DownloadManager.Request(uri).apply {
+                    if (!mimeType.isNullOrBlank()) {
+                        setMimeType(mimeType)
+                    }
+                    val cookies = CookieManager.getInstance().getCookie(url)
+                    if (!cookies.isNullOrEmpty()) {
+                        addRequestHeader("Cookie", cookies)
+                    }
+                    if (!userAgent.isNullOrBlank()) {
+                        addRequestHeader("User-Agent", userAgent)
+                    }
+                    setTitle(safeFilename)
+                    setDescription(appConfig.appName)
+                    setNotificationVisibility(
+                        DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                    )
+                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeFilename)
+                }
+
+                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+                if (dm != null) {
+                    dm.enqueue(request)
+                    Toast.makeText(this, "Downloading $safeFilename", Toast.LENGTH_SHORT).show()
+                }
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                } catch (_: Exception) {
+                    // Ignore if no handler exists.
+                }
             }
         }
     }

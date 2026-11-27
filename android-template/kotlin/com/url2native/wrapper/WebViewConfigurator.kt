@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.view.View
+import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import org.json.JSONObject
@@ -107,10 +108,20 @@ object WebViewConfigurator {
             webView.setLayerType(View.LAYER_TYPE_NONE, null)
         }
 
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, true)
+        }
+
         webView.settings.apply {
             javaScriptEnabled = true
+            javaScriptCanOpenWindowsAutomatically = true
             domStorageEnabled = true
             databaseEnabled = true
+            allowFileAccess = true
+            allowContentAccess = true
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             useWideViewPort = true
             loadWithOverviewMode = true
             setSupportZoom(true)
@@ -129,6 +140,10 @@ object WebViewConfigurator {
         }
 
         updateCacheMode(context, webView, config)
+    }
+
+    fun flushCookies() {
+        CookieManager.getInstance().flush()
     }
 
     fun updateCacheMode(context: Context, webView: WebView, config: Url2NativeConfig) {
