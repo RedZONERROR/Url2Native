@@ -12,6 +12,15 @@ on:
           - enable
           - disable
         default: config
+      android_abis:
+        description: "Android APK ABI mode (split APKs per ABI, universal APK, or both)"
+        required: false
+        type: choice
+        options:
+          - split-and-universal
+          - split-only
+          - universal-only
+        default: split-and-universal
       windows:
         description: "Build Windows installers (overrides app.config.json if not config)"
         required: false
@@ -39,6 +48,124 @@ on:
           - enable
           - disable
         default: config
+      app_name:
+        description: "App Name (leave blank to use app.config.json)"
+        required: false
+        type: string
+        default: ""
+      package_id:
+        description: "Package ID, e.g. com.example.app (leave blank to use app.config.json)"
+        required: false
+        type: string
+        default: ""
+      app_url:
+        description: "Target Website URL (leave blank to use app.config.json)"
+        required: false
+        type: string
+        default: ""
+      app_version:
+        description: "App Version semver, e.g. 1.0.0 (leave blank to use app.config.json)"
+        required: false
+        type: string
+        default: ""
+      user_agent_mode:
+        description: "User-Agent mode (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - default
+          - replace
+          - append
+        default: config
+      user_agent_value:
+        description: "User-Agent string (leave blank to use app.config.json)"
+        required: false
+        type: string
+        default: ""
+      navigation_enabled:
+        description: "Optional Navigation Bar (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - enable
+          - disable
+        default: config
+      navigation_position:
+        description: "Navigation bar position (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - top
+          - bottom
+        default: config
+      navigation_bg_color:
+        description: "Navigation bar background hex color e.g. #111827 (blank = config)"
+        required: false
+        type: string
+        default: ""
+      navigation_icon_color:
+        description: "Navigation bar icon/text hex color e.g. #FFFFFF (blank = config)"
+        required: false
+        type: string
+        default: ""
+      pull_to_refresh:
+        description: "Pull to refresh (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - enable
+          - disable
+        default: config
+      smart_cache:
+        description: "Smart cache / offline storage (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - enable
+          - disable
+        default: config
+      hardware_acceleration:
+        description: "Hardware acceleration (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - enable
+          - disable
+        default: config
+      prevent_brightness_drop:
+        description: "Keep screen awake / brightness lock (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - enable
+          - disable
+        default: config
+      keep_external_domains_in_app:
+        description: "Keep external domains inside app (overrides app.config.json if not config)"
+        required: false
+        type: choice
+        options:
+          - config
+          - enable
+          - disable
+        default: config
+      allowed_domains:
+        description: "Allowed domains comma-separated, or 'none' to clear (blank = config)"
+        required: false
+        type: string
+        default: ""
+      external_schemes:
+        description: "External schemes comma-separated, or 'none' to clear (blank = config)"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -56,8 +183,11 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
       package_id: ${{ steps.plan.outputs.package_id }}
       android: ${{ steps.plan.outputs.android }}
+      android_split: ${{ steps.plan.outputs.android_split }}
+      android_universal: ${{ steps.plan.outputs.android_universal }}
       has_desktop: ${{ steps.plan.outputs.has_desktop }}
       desktop_matrix: ${{ steps.plan.outputs.desktop_matrix }}
+      resolved_config_b64: ${{ steps.plan.outputs.resolved_config_b64 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,59 +197,35 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Validate app.config.json and icon.png
-        run: node scripts/configure.mjs --check-only
-
-      - name: Compute build matrix
+      - name: Apply workflow overrides and compute build matrix
         id: plan
         env:
           INPUT_ANDROID: ${{ inputs.android || 'config' }}
+          INPUT_ANDROID_ABIS: ${{ inputs.android_abis || 'split-and-universal' }}
           INPUT_WINDOWS: ${{ inputs.windows || 'config' }}
           INPUT_MACOS: ${{ inputs.macos || 'config' }}
           INPUT_LINUX: ${{ inputs.linux || 'config' }}
-        run: |
-          node -e '
-            const fs = require("node:fs");
-            const cfg = JSON.parse(fs.readFileSync("app.config.json", "utf8"));
-            const resolveToggle = (envVal, cfgVal) => {
-              if (envVal === "enable") return true;
-              if (envVal === "disable") return false;
-              return Boolean(cfgVal);
-            };
+          INPUT_APP_NAME: ${{ inputs.app_name || '' }}
+          INPUT_PACKAGE_ID: ${{ inputs.package_id || '' }}
+          INPUT_APP_URL: ${{ inputs.app_url || '' }}
+          INPUT_APP_VERSION: ${{ inputs.app_version || '' }}
+          INPUT_USER_AGENT_MODE: ${{ inputs.user_agent_mode || 'config' }}
+          INPUT_USER_AGENT_VALUE: ${{ inputs.user_agent_value || '' }}
+          INPUT_NAVIGATION_ENABLED: ${{ inputs.navigation_enabled || 'config' }}
+          INPUT_NAVIGATION_POSITION: ${{ inputs.navigation_position || 'config' }}
+          INPUT_NAVIGATION_BG_COLOR: ${{ inputs.navigation_bg_color || '' }}
+          INPUT_NAVIGATION_ICON_COLOR: ${{ inputs.navigation_icon_color || '' }}
+          INPUT_PULL_TO_REFRESH: ${{ inputs.pull_to_refresh || 'config' }}
+          INPUT_SMART_CACHE: ${{ inputs.smart_cache || 'config' }}
+          INPUT_HARDWARE_ACCELERATION: ${{ inputs.hardware_acceleration || 'config' }}
+          INPUT_PREVENT_BRIGHTNESS_DROP: ${{ inputs.prevent_brightness_drop || 'config' }}
+          INPUT_KEEP_EXTERNAL_DOMAINS: ${{ inputs.keep_external_domains_in_app || 'config' }}
+          INPUT_ALLOWED_DOMAINS: ${{ inputs.allowed_domains || '' }}
+          INPUT_EXTERNAL_SCHEMES: ${{ inputs.external_schemes || '' }}
+        run: node scripts/apply-ci-overrides.mjs --write
 
-            const enableAndroid = resolveToggle(process.env.INPUT_ANDROID, cfg.build.android);
-            const enableWindows = resolveToggle(process.env.INPUT_WINDOWS, cfg.build.windows);
-            const enableMacos = resolveToggle(process.env.INPUT_MACOS, cfg.build.macos);
-            const enableLinux = resolveToggle(process.env.INPUT_LINUX, cfg.build.linux);
-
-            const targets = [];
-
-            if (enableWindows) {
-              targets.push(
-                { platform: "windows-x64", os: "windows-latest", target: "x86_64-pc-windows-msvc", rust_targets: "x86_64-pc-windows-msvc", bundles: "nsis,msi" },
-                { platform: "windows-arm64", os: "windows-latest", target: "aarch64-pc-windows-msvc", rust_targets: "aarch64-pc-windows-msvc", bundles: "nsis,msi" }
-              );
-            }
-            if (enableMacos) {
-              targets.push(
-                { platform: "macos-universal", os: "macos-latest", target: "universal-apple-darwin", rust_targets: "x86_64-apple-darwin,aarch64-apple-darwin", bundles: "dmg,app" }
-              );
-            }
-            if (enableLinux) {
-              targets.push(
-                { platform: "linux-x64", os: "ubuntu-22.04", target: "x86_64-unknown-linux-gnu", rust_targets: "x86_64-unknown-linux-gnu", bundles: "appimage,deb" },
-                { platform: "linux-arm64", os: "ubuntu-24.04-arm", target: "aarch64-unknown-linux-gnu", rust_targets: "aarch64-unknown-linux-gnu", bundles: "appimage,deb" }
-              );
-            }
-
-            const out = process.env.GITHUB_OUTPUT;
-            fs.appendFileSync(out, `app_name=${cfg.app.name}\n`);
-            fs.appendFileSync(out, `version=${cfg.app.version}\n`);
-            fs.appendFileSync(out, `package_id=${cfg.app.packageId}\n`);
-            fs.appendFileSync(out, `android=${enableAndroid}\n`);
-            fs.appendFileSync(out, `has_desktop=${targets.length > 0}\n`);
-            fs.appendFileSync(out, `desktop_matrix=${JSON.stringify(targets)}\n`);
-          '
+      - name: Validate resolved app.config.json and icon.png
+        run: node scripts/configure.mjs --check-only
 
   build-android:
     name: Build Android APK
@@ -159,6 +265,11 @@ jobs:
       - name: Install Node dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Apply resolved app.config.json overrides
+        env:
+          RESOLVED_CFG_B64: ${{ needs.prepare.outputs.resolved_config_b64 }}
+        run: node scripts/apply-ci-overrides.mjs --restore
+
       - name: Run pre-build configuration
         run: node scripts/configure.mjs
 
@@ -171,15 +282,29 @@ jobs:
       - name: Apply native Android overrides
         run: node scripts/configure.mjs --android-only
 
-      - name: Build unsigned release APK
+      - name: Build unsigned release APKs (per-ABI and/or universal)
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}
           NDK_HOME: ${{ env.ANDROID_HOME || env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+          BUILD_SPLIT: ${{ needs.prepare.outputs.android_split }}
+          BUILD_UNIVERSAL: ${{ needs.prepare.outputs.android_universal }}
         run: |
-          if ! npx tauri android build --apk --target aarch64 --target armv7 --target x86_64; then
-            echo "[android] Build failed. Extracting Kotlin/Gradle errors..."
-            (cd src-tauri/gen/android && ./gradlew :app:compileUniversalReleaseKotlin --console=plain --no-daemon 2>&1 | grep -E -A 3 "^e:|Unresolved|Type mismatch|overrides nothing|FAILURE:" | head -n 60) || true
-            exit 1
+          if [ "$BUILD_SPLIT" = "true" ]; then
+            echo "[android] Building split APKs per ABI (arm64-v8a, armeabi-v7a, x86_64)..."
+            if ! npx tauri android build --apk --split-per-abi --target aarch64 --target armv7 --target x86_64; then
+              echo "[android] Split APK build failed. Extracting Kotlin/Gradle errors..."
+              (cd src-tauri/gen/android && ./gradlew :app:compileReleaseKotlin --console=plain --no-daemon 2>&1 | grep -E -A 3 "^e:|Unresolved|Type mismatch|overrides nothing|FAILURE:" | head -n 60) || true
+              exit 1
+            fi
+          fi
+
+          if [ "$BUILD_UNIVERSAL" = "true" ]; then
+            echo "[android] Building universal APK (arm64-v8a + armeabi-v7a + x86_64)..."
+            if ! npx tauri android build --apk --target aarch64 --target armv7 --target x86_64; then
+              echo "[android] Universal APK build failed. Extracting Kotlin/Gradle errors..."
+              (cd src-tauri/gen/android && ./gradlew :app:compileUniversalReleaseKotlin --console=plain --no-daemon 2>&1 | grep -E -A 3 "^e:|Unresolved|Type mismatch|overrides nothing|FAILURE:" | head -n 60) || true
+              exit 1
+            fi
           fi
 
       - name: Align and sign APK with apksigner
@@ -290,9 +415,14 @@ jobs:
           FOUND=0
           while IFS= read -r -d '' apk; do
             FOUND=1
+            rel_dir=$(dirname "$apk")
+            flavor=$(basename "$(dirname "$rel_dir")")
             base=$(basename "$apk")
-            aligned="$KEYSTORE_WORK/aligned-${base}"
             signed_name="${base/-unsigned/}"
+            if [ -n "$flavor" ] && [ "$flavor" != "outputs" ] && [ "$flavor" != "apk" ] && [[ "$signed_name" != *"$flavor"* ]]; then
+              signed_name="${flavor}-${signed_name}"
+            fi
+            aligned="$KEYSTORE_WORK/aligned-${signed_name}"
             signed="$OUT_DIR/${signed_name}"
 
             echo "[apksigner] Aligning and signing $base -> $signed_name"
@@ -362,6 +492,11 @@ jobs:
 
       - name: Install Node dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Apply resolved app.config.json overrides
+        env:
+          RESOLVED_CFG_B64: ${{ needs.prepare.outputs.resolved_config_b64 }}
+        run: node scripts/apply-ci-overrides.mjs --restore
 
       - name: Run pre-build configuration
         run: node scripts/configure.mjs

@@ -35,7 +35,7 @@ Convert any web application URL into native, signed, installable applications fo
 
 | Platform | OS / SDK Targets | Architectures | Output Installers |
 | --- | --- | --- | --- |
-| Android | API 29 - 37 (Android 10 - 17) | Universal (arm64-v8a, armeabi-v7a, x86_64) | Signed `.apk` |
+| Android | API 29 - 37 (Android 10 - 17) | Split APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) + Universal | Signed `.apk` files |
 | Windows | Windows 10 and Windows 11 | x86_64 and aarch64 | `.exe` (NSIS), `.msi` |
 | macOS | macOS 11 (Big Sur) and newer | universal-apple-darwin (Intel + Apple Silicon) | `.dmg`, `.app.zip` |
 | Linux | Ubuntu 22.04+, Debian, Fedora, Arch | x86_64 and aarch64 | `.AppImage`, `.deb` |
@@ -78,6 +78,7 @@ Url2Native/
 |   |-- app.config.schema.json          # Strict JSON Schema for pre-build validation
 |-- scripts/
 |   |-- configure.mjs                   # CLI entry point for pre-build pipeline
+|   |-- apply-ci-overrides.mjs          # Resolves GitHub Actions Run workflow inputs and ABI mode
 |   |-- lib/
 |       |-- validator.mjs               # Validates app.config.json and icon.png
 |       |-- icon-generator.mjs          # Generates Android, Windows, macOS, Linux icons
@@ -136,7 +137,7 @@ Url2Native/
 4. **Trigger the on-demand build**
    - Commit and push your changes to `app.config.json` or `icon.png`.
    - Open the **Actions** tab, select **Build and Release Url2Native**, and click **Run workflow**.
-   - GitHub Actions spins up runners only for targets enabled under `build` (`android`, `windows`, `macos`, `linux`), or you can override individual platforms directly in the **Run workflow** dialog.
+   - In the **Run workflow** dialog you can also override `app_name`, `package_id`, `app_url`, `app_version`, `user_agent_mode`/`user_agent_value`, `navigation_*`, `behavior` toggles, `android_abis` (`split-and-universal`, `split-only`, or `universal-only`), and target platforms without editing `app.config.json` (any blank/`config` input falls back to `app.config.json`).
 
 5. **Download your installers**
    - Once the workflow completes, open **Releases** in your repository sidebar to download the signed `.apk`, `.exe`, `.msi`, `.dmg`, `.app.zip`, `.AppImage`, and `.deb` files.
