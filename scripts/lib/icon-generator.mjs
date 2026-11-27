@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -249,6 +250,48 @@ export function resizeRgba(src, srcW, srcH, dstW, dstH) {
   return dst;
 }
 
+function encodeIcoBmpFrame(size, rgba) {
+  const headerSize = 40;
+  const xorSize = size * size * 4;
+  const andRowStride = Math.ceil(size / 32) * 4;
+  const andSize = andRowStride * size;
+  const buf = Buffer.alloc(headerSize + xorSize + andSize);
+
+  buf.writeUInt32LE(headerSize, 0);
+  buf.writeInt32LE(size, 4);
+  buf.writeInt32LE(size * 2, 8); // Combined height of XOR + AND masks
+  buf.writeUInt16LE(1, 12); // Planes
+  buf.writeUInt16LE(32, 14); // 32-bit BGRA
+  buf.writeUInt32LE(0, 16); // BI_RGB
+  buf.writeUInt32LE(xorSize, 20);
+
+  let xorOffset = headerSize;
+  for (let y = size - 1; y >= 0; y -= 1) {
+    for (let x = 0; x < size; x += 1) {
+      const srcIdx = (y * size + x) * 4;
+      buf[xorOffset] = rgba[srcIdx + 2]; // B
+      buf[xorOffset + 1] = rgba[srcIdx + 1]; // G
+      buf[xorOffset + 2] = rgba[srcIdx]; // R
+      buf[xorOffset + 3] = rgba[srcIdx + 3]; // A
+      xorOffset += 4;
+    }
+  }
+
+  const andBase = headerSize + xorSize;
+  for (let y = size - 1; y >= 0; y -= 1) {
+    const dstRow = andBase + (size - 1 - y) * andRowStride;
+    for (let x = 0; x < size; x += 1) {
+      const alpha = rgba[(y * size + x) * 4 + 3];
+      if (alpha < 128) {
+        const byteIdx = dstRow + (x >> 3);
+        buf[byteIdx] |= 1 << (7 - (x & 7));
+      }
+    }
+  }
+
+  return buf;
+}
+
 function createIco(entries) {
   const header = Buffer.alloc(6);
   header.writeUInt16LE(0, 0); // reserved
@@ -260,7 +303,7 @@ function createIco(entries) {
   const dirBuffers = [];
   const imageBuffers = [];
 
-  for (const { size, png } of entries) {
+  for (const { size, payload } of entries) {
     const dir = Buffer.alloc(16);
     dir[0] = size >= 256 ? 0 : size;
     dir[1] = size >= 256 ? 0 : size;
@@ -268,11 +311,11 @@ function createIco(entries) {
     dir[3] = 0; // reserved
     dir.writeUInt16LE(1, 4); // color planes
     dir.writeUInt16LE(32, 6); // bits per pixel
-    dir.writeUInt32LE(png.length, 8);
+    dir.writeUInt32LE(payload.length, 8);
     dir.writeUInt32LE(dataOffset, 12);
     dirBuffers.push(dir);
-    imageBuffers.push(png);
-    dataOffset += png.length;
+    imageBuffers.push(payload);
+    dataOffset += payload.length;
   }
 
   return Buffer.concat([header, ...dirBuffers, ...imageBuffers]);
@@ -322,19 +365,21 @@ export function generateIcons({ rootDir, iconPath, androidOnly = false }) {
       resizeRgba(master.rgba, master.width, master.height, 1024, 1024)
     );
 
-    const png16 = encodePng(16, 16, resizeRgba(master.rgba, master.width, master.height, 16, 16));
-    const png24 = encodePng(24, 24, resizeRgba(master.rgba, master.width, master.height, 24, 24));
-    const png48 = encodePng(48, 48, resizeRgba(master.rgba, master.width, master.height, 48, 48));
-    const png64 = encodePng(64, 64, resizeRgba(master.rgba, master.width, master.height, 64, 64));
+    const rgba16 = resizeRgba(master.rgba, master.width, master.height, 16, 16);
+    const rgba24 = resizeRgba(master.rgba, master.width, master.height, 24, 24);
+    const rgba32 = resizeRgba(master.rgba, master.width, master.height, 32, 32);
+    const rgba48 = resizeRgba(master.rgba, master.width, master.height, 48, 48);
+    const rgba64 = resizeRgba(master.rgba, master.width, master.height, 64, 64);
+    const rgba128 = resizeRgba(master.rgba, master.width, master.height, 128, 128);
 
     const icoBuf = createIco([
-      { size: 16, png: png16 },
-      { size: 24, png: png24 },
-      { size: 32, png: png32 },
-      { size: 48, png: png48 },
-      { size: 64, png: png64 },
-      { size: 128, png: png128 },
-      { size: 256, png: png256 }
+      { size: 16, payload: encodeIcoBmpFrame(16, rgba16) },
+      { size: 24, payload: encodeIcoBmpFrame(24, rgba24) },
+      { size: 32, payload: encodeIcoBmpFrame(32, rgba32) },
+      { size: 48, payload: encodeIcoBmpFrame(48, rgba48) },
+      { size: 64, payload: encodeIcoBmpFrame(64, rgba64) },
+      { size: 128, payload: encodeIcoBmpFrame(128, rgba128) },
+      { size: 256, payload: png256 }
     ]);
     fs.writeFileSync(path.join(tauriIconsDir, "icon.ico"), icoBuf);
 
@@ -360,6 +405,25 @@ export function generateIcons({ rootDir, iconPath, androidOnly = false }) {
     ];
     for (const [filename, size] of storeSizes) {
       writePngVariant(master, path.join(tauriIconsDir, filename), size);
+    }
+
+    // If @tauri-apps/cli is installed, also run `tauri icon` for native desktop icon parity.
+    const tauriCliBin = path.join(
+      rootDir,
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "tauri.cmd" : "tauri"
+    );
+    if (fs.existsSync(tauriCliBin)) {
+      try {
+        execFileSync(tauriCliBin, ["icon", iconPath, "-o", tauriIconsDir], {
+          cwd: rootDir,
+          stdio: "pipe",
+          shell: process.platform === "win32"
+        });
+      } catch {
+        // Fallback BMP+PNG icons generated above remain intact.
+      }
     }
   }
 

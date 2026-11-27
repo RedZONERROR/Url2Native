@@ -220,6 +220,10 @@ fn create_configured_window(
         let new_win_config = config.clone();
         let app_for_new_win = app.clone();
 
+        if let Some(icon) = app.default_window_icon() {
+            builder = builder.icon(icon.clone())?;
+        }
+
         builder = builder
             .inner_size(1280.0, 800.0)
             .min_inner_size(360.0, 480.0)
