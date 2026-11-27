@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Url2Native Web Configurator</title>
+  <meta name="description" content="Configure app.config.json, generate a 1024x1024 icon.png, and trigger Url2Native builds directly from your browser.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-badge" aria-hidden="true">U2N</div>
+        <div>
+          <h1>Url2Native Configurator</h1>
+          <p class="subtitle">Configure your native app, resize your icon to 1024x1024 PNG, and trigger GitHub Actions builds.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <label class="btn btn-secondary file-btn">
+          Import app.config.json
+          <input id="import-config-input" type="file" accept=".json,application/json" hidden>
+        </label>
+        <button id="reset-defaults-btn" type="button" class="btn btn-secondary">Reset Defaults</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <form id="config-form" class="form-column" novalidate>
+      <!-- 1. App Identity & Icon -->
+      <section class="card" aria-labelledby="sec-app">
+        <h2 id="sec-app">1. App Identity and Icon</h2>
+        <div class="grid-2">
+          <div class="field">
+            <label for="app-name">App Name</label>
+            <input id="app-name" type="text" maxlength="64" required value="Url2Native App">
+          </div>
+          <div class="field">
+            <label for="app-packageId">Package ID (Reverse Domain)</label>
+            <input id="app-packageId" type="text" maxlength="128" required value="com.redzonerror.url2native" placeholder="com.company.myapp">
+          </div>
+          <div class="field">
+            <label for="app-version">Version (SemVer)</label>
+            <input id="app-version" type="text" required value="1.0.0" placeholder="1.0.0">
+          </div>
+          <div class="field">
+            <label for="app-url">Target Website URL</label>
+            <input id="app-url" type="url" required value="https://example.com" placeholder="https://example.com">
+          </div>
+        </div>
+
+        <div class="icon-picker-box">
+          <div class="icon-preview-wrap">
+            <canvas id="icon-canvas" width="1024" height="1024" aria-label="1024x1024 icon preview"></canvas>
+            <span id="icon-status" class="hint">Default geometric icon ready (1024x1024 PNG)</span>
+          </div>
+          <div class="icon-controls">
+            <div class="field">
+              <label for="icon-file-input">Pick App Icon Image (PNG, JPG, WebP, SVG)</label>
+              <input id="icon-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="app-icon-path">Icon File Path in Repo</label>
+                <input id="app-icon-path" type="text" value="icon.png" required>
+              </div>
+              <div class="field">
+                <label for="icon-radius">Corner Radius (%)</label>
+                <input id="icon-radius" type="range" min="0" max="50" value="0">
+              </div>
+              <div class="field">
+                <label for="icon-padding">Padding (%)</label>
+                <input id="icon-padding" type="range" min="0" max="25" value="0">
+              </div>
+              <div class="field">
+                <label for="icon-bg-transparent">
+                  <input id="icon-bg-transparent" type="checkbox" checked>
+                  Transparent Background
+                </label>
+                <input id="icon-bg-color" type="color" value="#2563EB" aria-label="Icon background fill color">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. User-Agent -->
+      <section class="card" aria-labelledby="sec-ua">
+        <h2 id="sec-ua">2. User-Agent</h2>
+        <p class="hint">All platforms automatically prepend <code>NativeApp/1.0</code> before the system WebView User-Agent at runtime. These fields remain in <code>app.config.json</code> for schema compatibility.</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="ua-mode">Mode</label>
+            <select id="ua-mode">
+              <option value="append" selected>append</option>
+              <option value="default">default</option>
+              <option value="replace">replace</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ua-value">Value</label>
+            <input id="ua-value" type="text" maxlength="512" value="Url2Native/1.0">
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Behavior -->
+      <section class="card" aria-labelledby="sec-behavior">
+        <h2 id="sec-behavior">3. WebView Behavior</h2>
+        <div class="toggles-grid">
+          <label class="toggle-item">
+            <input id="beh-pullToRefresh" type="checkbox" checked>
+            <span>Pull to Refresh (Android)</span>
+          </label>
+          <label class="toggle-item">
+            <input id="beh-smartCache" type="checkbox" checked>
+            <span>Smart Offline Cache</span>
+          </label>
+          <label class="toggle-item">
+            <input id="beh-hardwareAcceleration" type="checkbox" checked>
+            <span>Hardware Acceleration</span>
+          </label>
+          <label class="toggle-item">
+            <input id="beh-preventBrightnessDrop" type="checkbox" checked>
+            <span>Prevent Screen Sleep / Dimming</span>
+          </label>
+          <label class="toggle-item">
+            <input id="beh-keepExternalDomainsInApp" type="checkbox">
+            <span>Keep External Domains In-App</span>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="beh-externalSchemes">External URI Schemes (comma-separated)</label>
+            <input id="beh-externalSchemes" type="text" value="whatsapp, upi, tez, phonepe, paytmmp, tel, mailto, sms, geo, intent">
+          </div>
+          <div class="field">
+            <label for="beh-allowedDomains">Allowed In-App Domains (comma-separated)</label>
+            <input id="beh-allowedDomains" type="text" value="" placeholder="auth.example.com, *.cdn.example.com">
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Navigation Bar -->
+      <section class="card" aria-labelledby="sec-nav">
+        <div class="section-head">
+          <h2 id="sec-nav">4. Optional Navigation Bar</h2>
+          <label class="toggle-item compact">
+            <input id="nav-enabled" type="checkbox">
+            <span>Enable Navigation Bar</span>
+          </label>
+        </div>
+        <div class="grid-3">
+          <div class="field">
+            <label for="nav-position">Position</label>
+            <select id="nav-position">
+              <option value="bottom" selected>bottom</option>
+              <option value="top">top</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="nav-backgroundColor">Background Color</label>
+            <div class="color-pair">
+              <input id="nav-backgroundColor-picker" type="color" value="#111827" aria-label="Navigation background color picker">
+              <input id="nav-backgroundColor" type="text" value="#111827" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+          </div>
+          <div class="field">
+            <label for="nav-iconColor">Icon / Text Color</label>
+            <div class="color-pair">
+              <input id="nav-iconColor-picker" type="color" value="#FFFFFF" aria-label="Navigation icon color picker">
+              <input id="nav-iconColor" type="text" value="#FFFFFF" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-block">
+          <div class="section-head">
+            <h3>Navigation Buttons (max 8)</h3>
+            <button id="add-nav-btn" type="button" class="btn btn-small">+ Add Button</button>
+          </div>
+          <div id="nav-buttons-list" class="nav-buttons-list"></div>
+        </div>
+      </section>
+
+      <!-- 5. Offline / Error Screen -->
+      <section class="card" aria-labelledby="sec-error">
+        <h2 id="sec-error">5. Offline and Error Screen</h2>
+        <div class="grid-2">
+          <div class="field">
+            <label for="err-title">Title</label>
+            <input id="err-title" type="text" maxlength="100" value="Connection Unavailable">
+          </div>
+          <div class="field">
+            <label for="err-retryButtonText">Retry Button Text</label>
+            <input id="err-retryButtonText" type="text" maxlength="48" value="Retry Connection">
+          </div>
+        </div>
+        <div class="field">
+          <label for="err-message">Message</label>
+          <textarea id="err-message" rows="2" maxlength="500">Unable to reach the server. Please check your internet connection and try again.</textarea>
+        </div>
+        <div class="grid-3">
+          <div class="field">
+            <label for="err-accentColor">Accent Color</label>
+            <div class="color-pair">
+              <input id="err-accentColor-picker" type="color" value="#2563EB" aria-label="Error accent color picker">
+              <input id="err-accentColor" type="text" value="#2563EB" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+          </div>
+          <div class="field">
+            <label for="err-backgroundColor">Background Color</label>
+            <div class="color-pair">
+              <input id="err-backgroundColor-picker" type="color" value="#FFFFFF" aria-label="Error background color picker">
+              <input id="err-backgroundColor" type="text" value="#FFFFFF" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+          </div>
+          <div class="field">
+            <label for="err-textColor">Text Color</label>
+            <div class="color-pair">
+              <input id="err-textColor-picker" type="color" value="#111827" aria-label="Error text color picker">
+              <input id="err-textColor" type="text" value="#111827" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+          </div>
+        </div>
+        <div id="error-preview" class="error-preview">
+          <strong id="err-preview-title">Connection Unavailable</strong>
+          <p id="err-preview-message">Unable to reach the server. Please check your internet connection and try again.</p>
+          <span id="err-preview-btn" class="preview-btn">Retry Connection</span>
+        </div>
+      </section>
+
+      <!-- 6. Build Targets -->
+      <section class="card" aria-labelledby="sec-build">
+        <h2 id="sec-build">6. Build Targets</h2>
+        <div class="toggles-grid">
+          <label class="toggle-item">
+            <input id="bld-android" type="checkbox" checked>
+            <span>Android (.apk)</span>
+          </label>
+          <label class="toggle-item">
+            <input id="bld-windows" type="checkbox" checked>
+            <span>Windows (.exe, .msi)</span>
+          </label>
+          <label class="toggle-item">
+            <input id="bld-macos" type="checkbox" checked>
+            <span>macOS (.dmg, .app.zip)</span>
+          </label>
+          <label class="toggle-item">
+            <input id="bld-linux" type="checkbox" checked>
+            <span>Linux (.AppImage, .deb)</span>
+          </label>
+        </div>
+      </section>
+    </form>
+
+    <!-- Right Column: Validation, Download, & 1-Click GitHub Deploy -->
+    <aside class="output-column">
+      <section class="card sticky-panel" aria-labelledby="sec-export">
+        <h2 id="sec-export">Export and Build</h2>
+
+        <div id="validation-banner" class="banner banner-ok" role="status" aria-live="polite">
+          Configuration is valid.
+        </div>
+
+        <div class="action-stack">
+          <button id="download-config-btn" type="button" class="btn btn-primary">Download app.config.json</button>
+          <button id="download-icon-btn" type="button" class="btn btn-primary">Download icon.png (1024x1024)</button>
+          <button id="copy-json-btn" type="button" class="btn btn-secondary">Copy JSON</button>
+        </div>
+
+        <hr class="divider">
+
+        <div class="github-deploy">
+          <h3>1-Click Commit and Trigger Build</h3>
+          <p class="hint">Commits <code>app.config.json</code> and <code>icon.png</code> directly from your browser using your own Fine-Grained PAT (held in memory only, never saved) and triggers <code>build.yml</code>.</p>
+          <div class="field">
+            <label for="gh-repo">Repository (owner/repo)</label>
+            <input id="gh-repo" type="text" placeholder="username/Url2Native">
+          </div>
+          <div class="field">
+            <label for="gh-branch">Branch</label>
+            <input id="gh-branch" type="text" value="main">
+          </div>
+          <div class="field">
+            <label for="gh-token">Fine-Grained PAT (Contents + Actions: Read/Write)</label>
+            <input id="gh-token" type="password" autocomplete="off" placeholder="github_pat_...">
+          </div>
+          <button id="gh-deploy-btn" type="button" class="btn btn-accent">Commit and Run Build Workflow</button>
+          <div id="gh-status" class="gh-status" aria-live="polite"></div>
+        </div>
+
+        <hr class="divider">
+
+        <div>
+          <h3>Live app.config.json Preview</h3>
+          <pre id="json-preview" class="json-preview"></pre>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -18,6 +18,7 @@ Convert any web application URL into native, signed, installable applications fo
 ## Navigation
 
 - [Target Platform Matrix](#target-platform-matrix)
+- [Web Configurator (Visual Icon Picker and JSON Editor)](#web-configurator-visual-icon-picker-and-json-editor)
 - [Repository Architecture](#repository-architecture)
 - [Configuration Reference (app.config.json)](#configuration-reference-appconfigjson)
 - [Custom Android Keystore Secret (Optional)](#custom-android-keystore-secret-optional)
@@ -37,12 +38,38 @@ Convert any web application URL into native, signed, installable applications fo
 
 ---
 
+## Web Configurator (Visual Icon Picker and JSON Editor)
+
+Url2Native includes a static browser configurator at [docs/index.html](docs/index.html) so users do not have to hand-edit JSON or resize icons manually.
+
+### Hosting on GitHub Pages
+1. Open your repository **Settings** -> **Pages**.
+2. Under **Build and deployment**, set **Source** to **Deploy from a branch**, select **main** and folder **`/docs`**, and click **Save**.
+3. Open `https://<your-username>.github.io/<your-repo>/` (or use the upstream hosted page at `https://redzonerror.github.io/Url2Native/`).
+
+### Features
+- **Icon File Picker (`<input type="file">`):** Select any PNG, JPG, WebP, or SVG image and convert it in-browser into a square `1024x1024` `icon.png` with optional corner radius, padding, and background fill.
+- **Full `app.config.json` Editor:** Visual controls, toggles, color pickers, live error-screen preview, and navigation button editor for every section (`app`, `userAgent`, `behavior`, `navigation`, `errorScreen`, `build`).
+- **Two Export Modes:**
+  - **Download Files:** Download `app.config.json` and `icon.png` (1024x1024) and upload them directly to your repository.
+  - **1-Click Commit and Trigger Build:** Enter your `owner/repo` and a Fine-Grained GitHub PAT (with `Contents: Read and Write` and `Actions: Read and Write` scoped to your repository). The page commits both files in a single commit and dispatches `build.yml` immediately. Tokens are kept only in browser memory and are never stored.
+
+### Fork vs. Use This Template
+- **Use this template (Recommended):** Creates a clean, independent repository with GitHub Actions enabled by default and zero upstream merge conflicts.
+- **Fork:** Works cleanly as well. Keep **Copy the `main` branch only** checked when forking, then open the **Actions** tab on your fork and click **I understand my workflows, go ahead and enable them**. If a fork inherits an upstream `keystore-vault` branch, `build.yml` detects the owner mismatch via `vault_owner.txt` and automatically initializes a separate fork-owned `keystore-vault` branch.
+
+---
+
 ## Repository Architecture
 
 ```text
 Url2Native/
 |-- app.config.json                     # User-editable single configuration file
 |-- icon.png                            # User-editable 1024x1024 master PNG icon
+|-- docs/                               # Static GitHub Pages Web Configurator
+|   |-- index.html                      # Configurator UI with local icon file picker
+|   |-- styles.css                      # Responsive fluid layout styles
+|   |-- app.js                          # Schema validation, 1024x1024 PNG canvas, GitHub API deploy
 |-- schema/
 |   |-- app.config.schema.json          # Strict JSON Schema for pre-build validation
 |-- scripts/
@@ -269,7 +296,7 @@ All customization is controlled through [app.config.json](app.config.json) and v
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `userAgent.mode` | `"default" \| "replace" \| "append"` | `default` keeps the system WebView User-Agent; `replace` overrides it with `value`; `append` appends `value` to the runtime WebView User-Agent. |
+| `userAgent.mode` | `"default" \| "replace" \| "append"` | Retained in `app.config.json` for schema compatibility. At runtime, all platforms automatically prepend `NativeApp/1.0` before the native system WebView User-Agent. |
 | `userAgent.value` | string | Custom User-Agent string or suffix. Required when `mode` is `replace` or `append`. |
 
 ### `behavior`

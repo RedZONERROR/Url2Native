@@ -217,17 +217,33 @@ jobs:
 
             VAULT_DIR="${{ runner.temp }}/vault-repo"
             rm -rf "$VAULT_DIR"
+            CREATE_NEW_VAULT=0
 
             if git ls-remote --exit-code --heads origin keystore-vault >/dev/null 2>&1; then
               echo "[keystore] Fetching encrypted keystore from keystore-vault branch."
               git clone --quiet --branch keystore-vault --single-branch --depth 1 "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
-              openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/keystore.enc" -out "$JKS_PATH" -pass env:VAULT_PASSPHRASE
-              openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/metadata.enc" -out "$META_PATH" -pass env:VAULT_PASSPHRASE
 
-              STORE_PASS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).storePassword)")
-              KEY_ALIAS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).keyAlias)")
-              KEY_PASS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).keyPassword)")
+              VAULT_OWNER=""
+              if [ -f "$VAULT_DIR/vault_owner.txt" ]; then
+                VAULT_OWNER=$(tr -d '\r\n' < "$VAULT_DIR/vault_owner.txt")
+              fi
+
+              if [ -n "$VAULT_OWNER" ] && [ "$VAULT_OWNER" != "${{ github.repository }}" ]; then
+                echo "[keystore] Inherited upstream keystore-vault from $VAULT_OWNER; initializing fork-owned vault for ${{ github.repository }}."
+                CREATE_NEW_VAULT=1
+              else
+                openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/keystore.enc" -out "$JKS_PATH" -pass env:VAULT_PASSPHRASE
+                openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$VAULT_DIR/metadata.enc" -out "$META_PATH" -pass env:VAULT_PASSPHRASE
+
+                STORE_PASS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).storePassword)")
+                KEY_ALIAS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).keyAlias)")
+                KEY_PASS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$META_PATH','utf8')).keyPassword)")
+              fi
             else
+              CREATE_NEW_VAULT=1
+            fi
+
+            if [ "$CREATE_NEW_VAULT" -eq 1 ]; then
               echo "[keystore] Generating new 2048-bit RSA keystore and storing encrypted vault."
               STORE_PASS=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)
               KEY_PASS="$STORE_PASS"
@@ -248,19 +264,21 @@ jobs:
 
               node -e "require('fs').writeFileSync('$META_PATH', JSON.stringify({ storePassword: process.argv[1], keyAlias: process.argv[2], keyPassword: process.argv[3] }))" "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS"
 
+              rm -rf "$VAULT_DIR"
               git clone --quiet --no-checkout "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$VAULT_DIR"
               cd "$VAULT_DIR"
               git checkout --orphan keystore-vault
               git rm -rf . >/dev/null 2>&1 || true
 
+              printf '%s\n' "${{ github.repository }}" > "$VAULT_DIR/vault_owner.txt"
               openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -in "$JKS_PATH" -out "$VAULT_DIR/keystore.enc" -pass env:VAULT_PASSPHRASE
               openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -in "$META_PATH" -out "$VAULT_DIR/metadata.enc" -pass env:VAULT_PASSPHRASE
 
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add keystore.enc metadata.enc
+              git add vault_owner.txt keystore.enc metadata.enc
               git commit --quiet -m "chore: initialize encrypted Android keystore vault"
-              git push --quiet origin keystore-vault
+              git push --quiet --force origin keystore-vault
               cd "${{ github.workspace }}"
             fi
           fi
