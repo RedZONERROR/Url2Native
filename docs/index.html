@@ -257,7 +257,7 @@
       </section>
     </form>
 
-    <!-- Right Column: Validation, Download, & 1-Click GitHub Deploy -->
+    <!-- Right Column: Validation, Download, & Preview -->
     <aside class="output-column">
       <section class="card sticky-panel" aria-labelledby="sec-export">
         <h2 id="sec-export">Export and Build</h2>
@@ -272,26 +272,7 @@
           <button id="copy-json-btn" type="button" class="btn btn-secondary">Copy JSON</button>
         </div>
 
-        <hr class="divider">
-
-        <div class="github-deploy">
-          <h3>1-Click Commit and Trigger Build</h3>
-          <p class="hint">Commits <code>app.config.json</code> and <code>icon.png</code> directly from your browser using your own Fine-Grained PAT (held in memory only, never saved) and triggers <code>build.yml</code>.</p>
-          <div class="field">
-            <label for="gh-repo">Repository (owner/repo)</label>
-            <input id="gh-repo" type="text" placeholder="username/Url2Native">
-          </div>
-          <div class="field">
-            <label for="gh-branch">Branch</label>
-            <input id="gh-branch" type="text" value="main">
-          </div>
-          <div class="field">
-            <label for="gh-token">Fine-Grained PAT (Contents + Actions: Read/Write)</label>
-            <input id="gh-token" type="password" autocomplete="off" placeholder="github_pat_...">
-          </div>
-          <button id="gh-deploy-btn" type="button" class="btn btn-accent">Commit and Run Build Workflow</button>
-          <div id="gh-status" class="gh-status" aria-live="polite"></div>
-        </div>
+        <p class="hint export-hint">Upload the downloaded <code>app.config.json</code> and <code>icon.png</code> to the root of your repository, then run <strong>Actions -&gt; Build and Release Url2Native -&gt; Run workflow</strong>.</p>
 
         <hr class="divider">
 

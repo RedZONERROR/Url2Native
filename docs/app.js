@@ -490,7 +490,6 @@ function refreshAll() {
   }
 
   byId("download-config-btn").disabled = errors.length > 0;
-  byId("gh-deploy-btn").disabled = errors.length > 0;
   byId("json-preview").textContent = JSON.stringify(cfg, null, 2);
   updateErrorPreview(cfg);
   renderIconCanvas();
@@ -516,165 +515,7 @@ function getIconBlob() {
   });
 }
 
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-function utf8ToBase64(text) {
-  return arrayBufferToBase64(new TextEncoder().encode(text).buffer);
-}
-
-async function githubRequest(path, token, method = "GET", body = null) {
-  const res = await fetch(`https://api.github.com${path}`, {
-    method,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-
-  const text = await res.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-
-  if (!res.ok) {
-    const msg = json?.message || text || `HTTP ${res.status}`;
-    throw new Error(`GitHub API error (${res.status}): ${msg}`);
-  }
-  return json;
-}
-
-async function deployToGitHub() {
-  const statusEl = byId("gh-status");
-  const repo = byId("gh-repo").value.trim();
-  const branch = byId("gh-branch").value.trim() || "main";
-  const token = byId("gh-token").value.trim();
-
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
-    statusEl.textContent = "Enter a valid repository as owner/repo.";
-    return;
-  }
-  if (!token) {
-    statusEl.textContent = "Enter a Fine-Grained GitHub PAT with Contents and Actions Read/Write.";
-    return;
-  }
-
-  const cfg = readConfigFromForm();
-  const errors = validateConfigObject(cfg);
-  if (errors.length > 0) {
-    statusEl.textContent = "Fix validation errors before deploying.";
-    return;
-  }
-
-  const deployBtn = byId("gh-deploy-btn");
-  deployBtn.disabled = true;
-  statusEl.textContent = "Encoding config and 1024x1024 icon...";
-
-  try {
-    const configText = JSON.stringify(cfg, null, 2) + "\n";
-    const iconBuf = await (await getIconBlob()).arrayBuffer();
-    const iconBase64 = arrayBufferToBase64(iconBuf);
-    const iconRepoPath = cfg.app.icon.replace(/^\/+/, "");
-
-    statusEl.textContent = `Reading branch ${branch}...`;
-    const refData = await githubRequest(
-      `/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`,
-      token
-    );
-    const baseCommitSha = refData.object.sha;
-    const baseCommit = await githubRequest(`/repos/${repo}/git/commits/${baseCommitSha}`, token);
-
-    statusEl.textContent = "Uploading blobs...";
-    const [cfgBlob, iconBlob] = await Promise.all([
-      githubRequest(`/repos/${repo}/git/blobs`, token, "POST", {
-        content: utf8ToBase64(configText),
-        encoding: "base64"
-      }),
-      githubRequest(`/repos/${repo}/git/blobs`, token, "POST", {
-        content: iconBase64,
-        encoding: "base64"
-      })
-    ]);
-
-    statusEl.textContent = "Creating commit...";
-    const tree = await githubRequest(`/repos/${repo}/git/trees`, token, "POST", {
-      base_tree: baseCommit.tree.sha,
-      tree: [
-        { path: "app.config.json", mode: "100644", type: "blob", sha: cfgBlob.sha },
-        { path: iconRepoPath, mode: "100644", type: "blob", sha: iconBlob.sha }
-      ]
-    });
-
-    const newCommit = await githubRequest(`/repos/${repo}/git/commits`, token, "POST", {
-      message: `chore: update ${cfg.app.name} config and icon via Web Configurator`,
-      tree: tree.sha,
-      parents: [baseCommitSha]
-    });
-
-    await githubRequest(
-      `/repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,
-      token,
-      "PATCH",
-      { sha: newCommit.sha, force: false }
-    );
-
-    statusEl.textContent = "Triggering Build and Release workflow...";
-    await githubRequest(
-      `/repos/${repo}/actions/workflows/build.yml/dispatches`,
-      token,
-      "POST",
-      {
-        ref: branch,
-        inputs: {
-          android: cfg.build.android ? "enable" : "disable",
-          windows: cfg.build.windows ? "enable" : "disable",
-          macos: cfg.build.macos ? "enable" : "disable",
-          linux: cfg.build.linux ? "enable" : "disable"
-        }
-      }
-    );
-
-    statusEl.textContent = "";
-    const msg = document.createElement("span");
-    msg.textContent = "Committed and dispatched build workflow. Track progress at ";
-    const link = document.createElement("a");
-    link.href = `https://github.com/${repo}/actions`;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = `github.com/${repo}/actions`;
-    statusEl.appendChild(msg);
-    statusEl.appendChild(link);
-  } catch (err) {
-    statusEl.textContent = err.message;
-  } finally {
-    refreshAll();
-  }
-}
-
-function detectGitHubRepo() {
-  const host = window.location.hostname;
-  if (host.endsWith(".github.io")) {
-    const owner = host.split(".")[0];
-    const parts = window.location.pathname.split("/").filter(Boolean);
-    const repoName = parts[0] || "Url2Native";
-    byId("gh-repo").value = `${owner}/${repoName}`;
-  }
-}
-
 function init() {
-  detectGitHubRepo();
 
   bindColorPair("nav-backgroundColor", "nav-backgroundColor-picker");
   bindColorPair("nav-iconColor", "nav-iconColor-picker");
@@ -761,8 +602,6 @@ function init() {
       btn.textContent = "Copy JSON";
     }, 1500);
   });
-
-  byId("gh-deploy-btn").addEventListener("click", deployToGitHub);
 
   applyConfigToForm(DEFAULT_CONFIG);
 }

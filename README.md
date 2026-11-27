@@ -56,9 +56,7 @@ A dedicated workflow ([.github/workflows/pages.yml](.github/workflows/pages.yml)
 ### Features
 - **Icon File Picker (`<input type="file">`):** Select any PNG, JPG, WebP, or SVG image and convert it in-browser into a square `1024x1024` `icon.png` with optional corner radius, padding, and background fill.
 - **Full `app.config.json` Editor:** Visual controls, toggles, color pickers, live error-screen preview, and navigation button editor for every section (`app`, `userAgent`, `behavior`, `navigation`, `errorScreen`, `build`).
-- **Two Export Modes:**
-  - **Download Files:** Download `app.config.json` and `icon.png` (1024x1024) and upload them directly to your repository.
-  - **1-Click Commit and Trigger Build:** Enter your `owner/repo` and a Fine-Grained GitHub PAT (with `Contents: Read and Write` and `Actions: Read and Write` scoped to your repository). The page commits both files in a single commit and dispatches `build.yml` immediately. Tokens are kept only in browser memory and are never stored.
+- **Download Ready-to-Build Files:** Validate your settings live, download `app.config.json` and `icon.png` (1024x1024), upload them to the root of your repository, and run **Actions -> Build and Release Url2Native -> Run workflow** (no tokens required).
 
 ### Fork vs. Use This Template
 - **Use this template (Recommended):** Creates a clean, independent repository with GitHub Actions enabled by default and zero upstream merge conflicts.
@@ -75,7 +73,7 @@ Url2Native/
 |-- docs/                               # Static GitHub Pages Web Configurator
 |   |-- index.html                      # Configurator UI with local icon file picker
 |   |-- styles.css                      # Responsive fluid layout styles
-|   |-- app.js                          # Schema validation, 1024x1024 PNG canvas, GitHub API deploy
+|   |-- app.js                          # Schema validation, 1024x1024 PNG canvas, JSON export
 |-- schema/
 |   |-- app.config.schema.json          # Strict JSON Schema for pre-build validation
 |-- scripts/

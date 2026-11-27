@@ -6,8 +6,6 @@
   --muted: #4b5563;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
-  --accent: #0f766e;
-  --accent-hover: #0d5e58;
   --ok-bg: #ecfdf5;
   --ok-text: #065f46;
   --ok-border: #a7f3d0;
@@ -341,16 +339,6 @@ input[type="file"] {
   background: var(--primary-hover);
 }
 
-.btn-accent {
-  background: var(--accent);
-  color: #ffffff;
-  width: 100%;
-}
-
-.btn-accent:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
 .btn-secondary {
   background: #ffffff;
   color: var(--text);
@@ -409,21 +397,15 @@ input[type="file"] {
   color: var(--muted);
 }
 
+.export-hint {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+}
+
 .divider {
   border: none;
   border-top: 1px solid var(--border);
   margin: 1rem 0;
-}
-
-.gh-status {
-  margin-top: 0.65rem;
-  font-size: 0.85rem;
-  word-break: break-word;
-}
-
-.gh-status a {
-  color: var(--primary);
-  font-weight: 600;
 }
 
 .json-preview {
