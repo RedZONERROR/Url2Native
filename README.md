@@ -46,12 +46,12 @@ Convert any web application URL into native, signed, installable applications fo
 
 Url2Native includes a static browser configurator at [docs/index.html](docs/index.html) so users do not have to hand-edit JSON or resize icons manually.
 
-### Hosting on GitHub Pages (Automated Workflow)
-A dedicated workflow ([.github/workflows/pages.yml](.github/workflows/pages.yml)) deploys [docs/](docs/) to GitHub Pages and automatically updates the **Live Web Configurator** link at the top of this README to match your repository (`https://<your-username>.github.io/<your-repo>/`):
+### Hosting on GitHub Pages (Manual Workflow)
+A dedicated manual workflow ([.github/workflows/pages.yml](.github/workflows/pages.yml)) deploys [docs/](docs/) to GitHub Pages and automatically updates the **Live Web Configurator** link at the top of this README to match your repository (`https://<your-username>.github.io/<your-repo>/`):
 
 1. Enable **Settings** -> **Actions** -> **General** -> **Workflow permissions** -> **Read and write permissions** (also required for `build.yml`).
 2. Open **Settings** -> **Pages**, set **Build and deployment -> Source** to **GitHub Actions** (one-time setup; GitHub restricts workflows from enabling Pages automatically on first run).
-3. Open **Actions** -> **Deploy Web Configurator (GitHub Pages)** and click **Run workflow** (after this first run, any commit to `docs/` automatically redeploys and syncs the README link).
+3. Open **Actions** -> **Deploy Web Configurator (GitHub Pages)** and click **Run workflow** whenever you want to publish or update the page and sync the README link.
 
 ### Features
 - **Icon File Picker (`<input type="file">`):** Select any PNG, JPG, WebP, or SVG image and convert it in-browser into a square `1024x1024` `icon.png` with optional corner radius, padding, and background fill.
@@ -111,7 +111,7 @@ Url2Native/
 |-- .github/
     |-- workflows/
         |-- build.yml                   # Dynamic OS/arch CI/CD + JKS vault + Releases
-        |-- pages.yml                   # Auto-deploys docs/ to Pages + syncs README URL
+        |-- pages.yml                   # Manual Pages deploy (docs/) + README URL sync
 ```
 
 ---
