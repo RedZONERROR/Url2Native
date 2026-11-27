@@ -27,6 +27,7 @@ open class MainActivity : TauriActivity() {
     private var pullToRefreshWrapper: PullToRefreshWrapper? = null
     private var errorOverlayController: ErrorOverlayController? = null
     private var hasMainFrameError: Boolean = false
+    private var containersAttached: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         appConfig = Url2NativeConfig.load(this)
@@ -90,8 +91,12 @@ open class MainActivity : TauriActivity() {
             errorOverlayController = errorController
         )
 
-        attachContainers(webView, ptrWrapper, errorController, navBarView)
         wrapWebViewClient(webView, ptrWrapper, errorController)
+        webView.post {
+            if (!isFinishing && !isDestroyed) {
+                attachContainers(webView, ptrWrapper, errorController, navBarView)
+            }
+        }
     }
 
     private fun attachContainers(
@@ -100,6 +105,9 @@ open class MainActivity : TauriActivity() {
         errorController: ErrorOverlayController,
         navBarView: View?
     ) {
+        if (containersAttached) return
+        containersAttached = true
+
         val parent = webView.parent as? ViewGroup
         val index = parent?.indexOfChild(webView) ?: -1
         val originalParams = webView.layoutParams ?: ViewGroup.LayoutParams(
@@ -185,13 +193,18 @@ open class MainActivity : TauriActivity() {
                 if (ExternalIntentHandler.handleUrl(this@MainActivity, view, uri, appConfig)) {
                     return true
                 }
-                return existingClient.shouldOverrideUrlLoading(view, request)
+                if (view != null && request != null) {
+                    return existingClient.shouldOverrideUrlLoading(view, request)
+                }
+                return false
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 hasMainFrameError = false
                 WebViewConfigurator.updateCacheMode(this@MainActivity, webView, appConfig)
-                existingClient.onPageStarted(view, url, favicon)
+                if (view != null && url != null) {
+                    existingClient.onPageStarted(view, url, favicon)
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -199,15 +212,21 @@ open class MainActivity : TauriActivity() {
                 if (!hasMainFrameError) {
                     errorController.hideError()
                 }
-                existingClient.onPageFinished(view, url)
+                if (view != null && url != null) {
+                    existingClient.onPageFinished(view, url)
+                }
             }
 
             override fun onPageCommitVisible(view: WebView?, url: String?) {
-                existingClient.onPageCommitVisible(view, url)
+                if (view != null && url != null) {
+                    existingClient.onPageCommitVisible(view, url)
+                }
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                existingClient.doUpdateVisitedHistory(view, url, isReload)
+                if (view != null && url != null) {
+                    existingClient.doUpdateVisitedHistory(view, url, isReload)
+                }
             }
 
             override fun onReceivedSslError(
@@ -215,7 +234,11 @@ open class MainActivity : TauriActivity() {
                 handler: SslErrorHandler?,
                 error: SslError?
             ) {
-                existingClient.onReceivedSslError(view, handler, error)
+                if (view != null && handler != null && error != null) {
+                    existingClient.onReceivedSslError(view, handler, error)
+                } else {
+                    super.onReceivedSslError(view, handler, error)
+                }
             }
 
             override fun onReceivedError(
@@ -232,7 +255,9 @@ open class MainActivity : TauriActivity() {
                     errorController.showError(request.url?.toString())
                     return
                 }
-                existingClient.onReceivedError(view, request, error)
+                if (view != null && request != null && error != null) {
+                    existingClient.onReceivedError(view, request, error)
+                }
             }
         }
     }

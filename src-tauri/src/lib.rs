@@ -263,7 +263,21 @@ pub fn run() {
 
     let setup_config = config.clone();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(win) = app
+            .get_webview_window("app")
+            .or_else(|| app.get_webview_window("main"))
+        {
+            let _ = win.unminimize();
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }));
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             config,
